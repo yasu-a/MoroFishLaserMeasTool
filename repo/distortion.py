@@ -1,0 +1,32 @@
+import pickle
+
+from model import DistortionCorrectionProfile
+from repo.common import ROOT_DIR_PATH
+
+_BASE_DIR_PATH = ROOT_DIR_PATH / "distortion"
+
+
+def list_names() -> list[str]:
+    lst = [(path, path.stat().st_mtime) for path in _BASE_DIR_PATH.iterdir()]
+    lst.sort(key=lambda x: x[1], reverse=True)
+    return [path.stem for path, _ in lst]
+
+
+def put(profile: DistortionCorrectionProfile) -> None:
+    path = _BASE_DIR_PATH / f"{profile.name}.pickle"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("wb") as f:
+        pickle.dump(profile, f)
+
+
+def get(name: str) -> DistortionCorrectionProfile:
+    path = _BASE_DIR_PATH / f"{name}.pickle"
+    if path.exists():
+        with path.open("rb") as f:
+            return pickle.load(f)
+    else:
+        raise FileNotFoundError(f"Profile '{name}' not found")
+
+
+def exists(name: str) -> bool:
+    return (_BASE_DIR_PATH / f"{name}.pickle").exists()
