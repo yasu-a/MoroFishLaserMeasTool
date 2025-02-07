@@ -174,8 +174,6 @@ class Application(ABC):
         return rendering_ctx.canvas
 
     def do_event(self):
-        scene = self.get_active_scene()
-
         # key events
         for evt in self._key_handler.cv2_wait_key_and_iter_key_events(self._cv2_wait_key_delay):
             self.key_event(evt)

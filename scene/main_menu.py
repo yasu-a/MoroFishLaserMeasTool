@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from active_profile_names import ActiveProfileNames
+from camera_server import CaptureResult, CameraInfo
 from core.tk.component.button import ButtonComponent
 from core.tk.component.component import Component
 from core.tk.component.label import LabelComponent
@@ -10,13 +11,13 @@ from core.tk.component.spacer import SpacerComponent
 from core.tk.event import KeyEvent
 from core.tk.key import Key
 from core.tk.rendering import RenderingContext
-from camera_server import AvailableCameraInfo, CaptureResult, CameraInfo
 from fps_counter import FPSCounterStat
+from scene.camera_param import CameraParaSelectImageDelegate
+from scene.distortion_correction import DistortionCorrectionScene
 from scene.global_config import GlobalConfigScene
 from scene.my_scene import MyScene
-from scene.camera_param import CameraParamScene
-from scene.distortion_correction import DistortionCorrectionScene
 from scene.save_image import SaveImageScene
+from scene.select_image_item import SelectImageItemScene
 from scene.select_profile_menu import SelectProfileMenuScene
 
 if TYPE_CHECKING:
@@ -134,7 +135,9 @@ class MainScene(MyScene):
                 self.get_app().move_to(DistortionCorrectionScene(self.get_app()))
                 return
             if sender.get_name() == "b-camera-param":
-                self.get_app().move_to(CameraParamScene(self.get_app()))
+                self.get_app().move_to(
+                    SelectImageItemScene(self.get_app(), CameraParaSelectImageDelegate(self.get_app()))
+                )
                 pass
             if sender.get_name() == "b-laser-param":
                 # Implement laser parameter scene

@@ -26,6 +26,7 @@ class CheckBoxComponent(Component):
 
     def set_value(self, value: bool) -> None:
         self._value = value
+        self._scene.on_value_changed(self)
 
     def render(self, ctx: RenderingContext) -> RenderingResult:
         x = ctx.left

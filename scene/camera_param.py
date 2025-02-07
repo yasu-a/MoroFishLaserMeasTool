@@ -1,97 +1,226 @@
-from typing import TYPE_CHECKING
+from typing import Iterable
 
 import cv2
 import numpy as np
+import pandas as pd
+from scipy.spatial import KDTree
 
 import repo.image
-from camera_calib_model import CameraCalibModel, DEFAULT_CALIB_MODEL
+from app_logging import create_logger
+from core.tk.app import Application
 from core.tk.component.button import ButtonComponent
 from core.tk.component.check_box import CheckBoxComponent
 from core.tk.component.component import Component
 from core.tk.component.label import LabelComponent
-from core.tk.component.line_edit import LineEditComponent
 from core.tk.component.spacer import SpacerComponent
+from core.tk.component.spin_box import SpinBoxComponent
 from core.tk.event import KeyEvent, MouseEvent
 from core.tk.key import Key
 from dot_snap import DotSnapComputer
 from model import Image
 from scene.my_scene import MyScene
-from scene.select_item import SelectItemScene, SelectItemDelegate
-
-if TYPE_CHECKING:
-    from core.tk.app import Application
-
-
-class SelectImageScene(SelectItemScene):
-    def render_canvas(self) -> np.ndarray | None:
-        return None
-
-    def selection_change_event(self, name: str | None):
-        super().selection_change_event(name)
-        if name is not None:
-            self.set_picture_in_picture(repo.image.get(name).data)
+from scene.select_item import SelectItemDelegate
+from util.camera_calib_model import CameraCalibModel, DEFAULT_CALIB_MODEL
+from util.solve_parameter import solve_equations_camera
 
 
 class CameraParaSelectImageDelegate(SelectItemDelegate):
-    def __init__(self, scene: "CameraParamScene"):
-        self._scene = scene
+    def __init__(self, app: Application):
+        super().__init__(app)
+        self._selected_image: Image | None = None
 
     def list_name(self) -> list[str]:
         return repo.image.list_names()
 
     def execute(self, name: str) -> str | None:
         image = repo.image.get(name)
-        self._scene.set_target_image(image)
+        self._selected_image = image
         return None
+
+    def after_selected(self) -> None:
+        assert self._selected_image is not None
+        scene = CameraParamScene(self.get_app(), image=self._selected_image)
+        self.get_app().move_to(scene)
+
+
+class InputPoints:
+    _logger = create_logger()
+
+    def __init__(self, calib_model: CameraCalibModel):
+        self._calib_model = calib_model
+
+        self._points_2d: list[tuple[int, int] | None] \
+            = [None] * calib_model.get_world_point_count()
+        self._points_2d_kdtree: KDTree | None = None  # None if empty
+        self._kdtree_index_mapping: dict[int, int] = {}
+
+        self._modification_count = 0
+        self._camera_param = None
+        self._camera_param_modification_count = None
+
+    def get_camera_param(self):
+        if self._camera_param is None \
+                or self._camera_param_modification_count != self._modification_count:
+            points = []
+            for i in self.iter_indexes():
+                if not self.is_marked(i):
+                    continue
+                points.append([*self._calib_model.get_world_point(i), *self.point_at(i)])
+            points = np.array(points)
+            self._camera_param = solve_equations_camera(points)
+            self._camera_param_modification_count = self._modification_count
+            self._logger.debug(
+                f"Camera parameter recalculated\n"
+                f"{pd.DataFrame(self._camera_param).round(6)!s}\n"
+                f"{pd.DataFrame(points).round(0)!s}"
+            )
+        return self._camera_param
+
+    def _update_kdtree(self):
+        available_points_2d = [
+            p
+            for p in self._points_2d
+            if p is not None
+        ]
+
+        self._kdtree_index_mapping = {}
+        j = 0
+        for i in range(len(self._points_2d)):
+            if self._points_2d[i] is not None:
+                self._kdtree_index_mapping[j] = i
+                j += 1
+
+        if not available_points_2d:
+            self._points_2d_kdtree = None
+            return
+        self._points_2d_kdtree = KDTree(available_points_2d)
+
+    def add_point(self, index: int, p2d: tuple[int, int]) -> None:
+        self._points_2d[index] = p2d
+        self._update_kdtree()
+        self._modification_count += 1
+
+    def remove_point(self, index: int) -> None:
+        self._points_2d[index] = None
+        self._update_kdtree()
+        self._modification_count += 1
+
+    def query_nearest_index(self, x: int, y: int, r: float) \
+            -> tuple[int | None, float | None]:  # index and distance
+        if self._points_2d_kdtree is None:
+            return None, np.inf
+        d, i = self._points_2d_kdtree.query([x, y])
+        i = self._kdtree_index_mapping[i]
+        if d > r:
+            return None, np.inf
+        return i, d
+
+    def is_marked(self, index: int) -> bool:
+        return self._points_2d[index] is not None
+
+    def point_at(self, index: int) -> tuple[int, int]:
+        p = self._points_2d[index]
+        assert p is not None
+        return p
+
+    def find_point(self, point: tuple[int, int]) -> int | None:
+        for i, p in enumerate(self._points_2d):
+            if p is None:
+                continue
+            if p == point:
+                return i
+        return None
+
+    def iter_indexes(self) -> Iterable[int]:
+        yield from range(len(self._points_2d))
+
+
+class SnapManager:
+    def __init__(self, input_points: InputPoints, dot_snap_points: list[tuple[int, int]]):
+        self._input_points = input_points
+        self._dot_snap_points = dot_snap_points
+        self._dot_snap_points_kdtree = KDTree(dot_snap_points)
+
+    def query_nearest_snap(self, x: int, y: int, r: float) -> tuple[int, int] | None:
+        i_input, d_input = self._input_points.query_nearest_index(x, y, r)
+
+        d_dot_snap, i_dot_snap = self._dot_snap_points_kdtree.query([x, y])
+        if d_dot_snap > r:
+            i_dot_snap, d_dot_snap = None, np.inf
+
+        if i_input is None and i_dot_snap is None:
+            return None
+
+        if d_input < d_dot_snap:
+            return self._input_points.point_at(i_input)
+        else:
+            return self._dot_snap_points[i_dot_snap]
 
 
 class CameraParamScene(MyScene):
-    def __init__(self, app: "Application"):
+    def __init__(self, app: "Application", image: Image):
         super().__init__(app)
 
-        self._image: Image | None = None
-        self._dot_snap_computer: DotSnapComputer | None = None
+        self._snap_distance = 20
 
-        self._cursor_pos: tuple[int, int] | None = None
-
-        self._active_world_point_index = 0
-
-        self._calib_model: CameraCalibModel | None = None
-        self.set_calib_model(DEFAULT_CALIB_MODEL)
-
-        self._show_model = True
-
-        self._points: dict[tuple[float, float, float], tuple[int, int]] = {}
-
-    def set_target_image(self, image: Image) -> None:
-        self._image = image
-        self._dot_snap_computer = DotSnapComputer(
+        self._image: Image = image
+        dot_snap_computer: DotSnapComputer = DotSnapComputer(
             cv2.cvtColor(self._image.data, cv2.COLOR_BGR2GRAY),
             crop_radius=20,
             min_samples=5,
             snap_radius=30,
             stride=5,
         )
-        self.find_component(LabelComponent, "l-image-name").set_text(image.name)
 
-    def set_calib_model(self, calib_model: CameraCalibModel):
-        self._calib_model = calib_model
+        self._cursor_pos: tuple[int, int] = (0, 0)
+
+        self._calib_model: CameraCalibModel = DEFAULT_CALIB_MODEL
+
+        self._input_points = InputPoints(
+            calib_model=self._calib_model,
+
+        )
+        self._snap_manager = SnapManager(
+            input_points=self._input_points,
+            dot_snap_points=dot_snap_computer.compute_snap_positions().tolist(),
+        )
 
     def load_event(self):
         self.add_component(LabelComponent, "Camera Parameter", bold=True)
         self.add_component(SpacerComponent)
-        self.add_component(ButtonComponent, "Select Image", name="b-select-image")
-        self.add_component(LabelComponent, "", name="l-image-name")
+        self.add_component(CheckBoxComponent, "Snap to auto detected points (S)", True,
+                           name="cb-snap")
+        self.add_component(CheckBoxComponent, "Show 3D model (TAB)", True, name="cb-show-3d-model")
         self.add_component(SpacerComponent)
-        self.add_component(CheckBoxComponent, "Snap to auto detected points", True, name="cb-snap")
-        self.add_component(LabelComponent, "Press <TAB> to hide model")
+        self.add_component(LabelComponent, "World point:")
+        self.add_component(
+            SpinBoxComponent,
+            min_value=0,
+            max_value=self._calib_model.get_world_point_count() - 1,
+            value=0,
+            name="sb-active-point-index",
+        )
         self.add_component(SpacerComponent)
         self.add_component(ButtonComponent, "Back", name="b-back")
 
+    def get_active_point_index(self) -> int:
+        sb = self.find_component(SpinBoxComponent, "sb-active-point-index")
+        return sb.get_value()
+
     def update(self):
-        if self._calib_model is not None and self._image is not None and self._show_model:
+        if self._calib_model is not None \
+                and self.find_component(CheckBoxComponent, "cb-show-3d-model").get_value():
+            p_highlighted = {}
+            for i in self._input_points.iter_indexes():
+                if self._input_points.is_marked(i):
+                    p_highlighted[i] = 0, 200, 0
+            p_highlighted[self.get_active_point_index()] = 0, 0, 255
             self.set_picture_in_picture(
-                self._calib_model.render_3d(500, 500, self._active_world_point_index),
+                self._calib_model.render_3d(
+                    width=500,
+                    height=500,
+                    p_highlighted=p_highlighted,
+                ),
                 500,
             )
         else:
@@ -99,9 +228,6 @@ class CameraParamScene(MyScene):
         return super().update()
 
     def render_canvas(self) -> np.ndarray | None:
-        if self._image is None:
-            return None
-
         canvas = self._image.data.copy()
         cv2.rectangle(
             canvas,
@@ -112,80 +238,161 @@ class CameraParamScene(MyScene):
             cv2.LINE_AA,
         )
 
-        if self._cursor_pos is not None:
-            cv2.circle(
-                canvas,
-                self._cursor_pos,
-                8,
-                (0, 0, 255),
-                1,
-                cv2.LINE_AA,
-            )
+        # カメラパラメータ行列が張る空間の描画
+        mat_camera = self._input_points.get_camera_param()
 
-        for p2d in self._points.values():
+        def _proj(p):
+            nonlocal mat_camera
+            p3d = np.array([*p, 1])
+            p2d = mat_camera @ p3d
+            p2d /= p2d[2]
+            return p2d[:2].round(0).astype(int)
+
+        size = self._calib_model.get_size()
+        for v in np.arange(0, size + 1e-6, 20):
+            p1, p2 = np.array([v, 0, 0]), np.array([v, size, 0])
+            for i in range(3):
+                cv2.line(canvas, _proj(p1), _proj(p2), (200, 50, 0), 1, cv2.LINE_AA)
+                p1, p2 = np.roll(p1, 1), np.roll(p2, 1)
+            p1, p2 = np.array([0, v, 0]), np.array([size, v, 0])
+            for i in range(3):
+                cv2.line(canvas, _proj(p1), _proj(p2), (200, 50, 0), 1, cv2.LINE_AA)
+                p1, p2 = np.roll(p1, 1), np.roll(p2, 1)
+
+        # 点予測
+        p2d = _proj(self._calib_model.get_world_point(self.get_active_point_index()))
+        cv2.circle(
+            canvas,
+            p2d,
+            20,
+            (50, 50, 50),
+            1,
+            cv2.LINE_AA,
+        )
+        cv2.putText(
+            canvas,
+            "PREDICTION",
+            p2d + [20, 20],
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.35,
+            (50, 50, 50),
+            1,
+            cv2.LINE_AA,
+        )
+
+        # カーソル
+        cv2.circle(
+            canvas,
+            self._cursor_pos,
+            8,
+            (255, 255, 255),
+            2,
+            cv2.LINE_AA,
+        )
+        cv2.circle(
+            canvas,
+            self._cursor_pos,
+            8,
+            (0, 0, 200),
+            1,
+            cv2.LINE_AA,
+        )
+
+        # 点
+        for i in (self._input_points.iter_indexes()):
+            if not self._input_points.is_marked(i):
+                continue
+            p2d = self._input_points.point_at(i)
             cv2.circle(
                 canvas,
                 p2d,
                 2,
-                (0, 0, 255),
+                (255, 255, 255),
+                3,
+                cv2.LINE_AA,
+            )
+            cv2.circle(
+                canvas,
+                p2d,
+                2,
+                (0, 0, 200) if i == self.get_active_point_index() else (0, 200, 0),
                 2,
                 cv2.LINE_AA,
             )
 
         return canvas
 
+    def move_onto_prev_point(self):
+        sb = self.find_component(SpinBoxComponent, "sb-active-point-index")
+        sb.set_value((sb.get_value() - 1) % self._calib_model.get_world_point_count())
+
+    def move_onto_next_point(self):
+        sb = self.find_component(SpinBoxComponent, "sb-active-point-index")
+        sb.set_value((sb.get_value() + 1) % self._calib_model.get_world_point_count())
+
     def key_event(self, event: KeyEvent) -> bool:
         if event.down:
             if event.key == Key.TAB:
-                self._show_model = not self._show_model
+                cb = self.find_component(CheckBoxComponent, "cb-show-3d-model")
+                cb.set_value(not cb.get_value())
+            if event.key == Key.S:
+                cb = self.find_component(CheckBoxComponent, "cb-snap")
+                cb.set_value(not cb.get_value())
+            if event.key == Key.A:
+                self.move_onto_prev_point()
+            if event.key == Key.D:
+                self.move_onto_next_point()
         return super().key_event(event)
 
     def mouse_event(self, event: MouseEvent) -> bool:
         if super().mouse_event(event):
             return True
-        if self._image is not None:
-            if event.move:
-                if self.find_component(CheckBoxComponent, "cb-snap").get_value():
-                    snap_pos = self._dot_snap_computer.find_snap_pos((event.x, event.y))
-                    if snap_pos is not None:
-                        self._cursor_pos = snap_pos
-                    else:
-                        self._cursor_pos = (event.x, event.y)
+        if event.move:
+            if self.find_component(CheckBoxComponent, "cb-snap").get_value():
+                snap_pos = self._snap_manager.query_nearest_snap(
+                    event.x, event.y, self._snap_distance
+                )
+                if snap_pos is not None:
+                    self._cursor_pos = snap_pos
                 else:
                     self._cursor_pos = (event.x, event.y)
-                return True
-            if event.left_down:
-                if self._cursor_pos is not None:
-                    p3d = self._calib_model.get_world_point(self._active_world_point_index)
-                    p2d = self._cursor_pos
-                    self._points[p3d] = p2d
-                    self._active_world_point_index += 1
-                    self._active_world_point_index %= self._calib_model.get_world_point_count()
+            else:
+                self._cursor_pos = (event.x, event.y)
+            return True
+        if event.left_down:
+            p2d = self._cursor_pos
+            self._input_points.add_point(self.get_active_point_index(), p2d)
+            self.move_onto_next_point()
+        if event.right_down:
+            snap_pos = self._snap_manager.query_nearest_snap(
+                event.x, event.y, self._snap_distance
+            )
+            if snap_pos is not None:
+                index = self._input_points.find_point(self._cursor_pos)
+                if index is not None:
+                    self._input_points.remove_point(index)
+                    return True
+
         return False
 
-    def set_overwrite_state(self, state: bool):
-        if state:
-            # already exists
-            self.find_component(ButtonComponent, "b-save").set_text("Overwrite and Save")
-            self.find_component(LabelComponent, "l-info").set_text(
-                f"Name already exists. Are you sure to overwrite it?"
-            )
-        else:
-            self.find_component(ButtonComponent, "b-save").set_text("Save")
-            self.find_component(LabelComponent, "l-info").set_text("")
+    # def set_overwrite_state(self, state: bool):
+    #     if state:
+    #         # already exists
+    #         self.find_component(ButtonComponent, "b-save").set_text("Overwrite and Save")
+    #         self.find_component(LabelComponent, "l-info").set_text(
+    #             f"Name already exists. Are you sure to overwrite it?"
+    #         )
+    #     else:
+    #         self.find_component(ButtonComponent, "b-save").set_text("Save")
+    #         self.find_component(LabelComponent, "l-info").set_text("")
 
     def on_value_changed(self, sender: Component) -> None:
-        if sender.get_name() == "e-name":
-            name = self.find_component(LineEditComponent, "e-name").get_value()
-            self.set_overwrite_state(repo.image.exists(name))
-            return
+        # if sender.get_name() == "e-name":
+        #     name = self.find_component(LineEditComponent, "e-name").get_value()
+        #     self.set_overwrite_state(repo.image.exists(name))
+        #     return
         super().on_value_changed(sender)
 
     def on_button_triggered(self, sender: Component) -> None:
-        if sender.get_name() == "b-select-image":
-            self.get_app().move_to(
-                SelectImageScene(self.get_app(), CameraParaSelectImageDelegate(self))
-            )
-            return
         if sender.get_name() == "b-back":
             self.get_app().move_back()

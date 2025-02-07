@@ -15,13 +15,13 @@ if TYPE_CHECKING:
 
 class DistortionSelectItemDelegate(SelectItemDelegate):
     def __init__(self, app: "MyApplication"):
-        self._app = app
+        super().__init__(app)
 
     def list_name(self) -> list[str]:
         return repo.distortion.list_names()
 
     def execute(self, name: str) -> str | None:
-        self._app.active_profile_names.distortion_profile_name = name
+        self.get_app().active_profile_names.distortion_profile_name = name
         return None
 
 

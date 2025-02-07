@@ -1,14 +1,26 @@
 from abc import ABC, abstractmethod
 
-from core.tk.app import Application
 from core.tk.component.button import ButtonComponent
 from core.tk.component.component import Component
 from core.tk.component.label import LabelComponent
 from core.tk.component.spacer import SpacerComponent
 from scene.my_scene import MyScene
 
+from typing import TYPE_CHECKING, TypeVar
+
+if TYPE_CHECKING:
+    from core.tk.app import Application
+
+    A = TypeVar("A", bound=Application)
+
 
 class SelectItemDelegate(ABC):
+    def __init__(self, app: "A"):
+        self._app = app
+
+    def get_app(self) -> "A":
+        return self._app
+
     def item_count_per_page(self) -> int:
         return 10
 
@@ -20,6 +32,9 @@ class SelectItemDelegate(ABC):
     def execute(self, name: str) \
             -> str | None:  # returns None if success, otherwise returns error message
         raise NotImplementedError()
+
+    def after_selected(self) -> None:
+        self.get_app().move_back()
 
 
 class SelectItemScene(MyScene):
@@ -105,7 +120,7 @@ class SelectItemScene(MyScene):
                             "info",
                             f"Item selected: {name}"
                         )
-                        self.get_app().move_back()
+                        self._delegator.after_selected()
                     else:
                         self.get_app().make_toast(
                             "error",

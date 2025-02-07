@@ -2,7 +2,6 @@ import functools
 
 import cv2
 import numpy as np
-from matplotlib import pyplot as plt
 
 from app_logging import create_logger
 

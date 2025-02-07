@@ -1,9 +1,6 @@
 import time
-from pprint import pprint
 
 import cv2
-import numpy as np
-
 import numpy as np
 
 
@@ -42,46 +39,49 @@ def rotation_matrix_from_vectors(v1, v2):
     return R
 
 
-def normal_from_three_points(p1, p2, p3, normalize=True):
+def normal_from_three_points(p1, p2, p3):
     """
     3つの3D点から法線ベクトルを求める
 
     :param p1, p2, p3: 3つの点 (numpy array)
-    :param normalize: Trueなら単位ベクトルに正規化
     :return: 法線ベクトル (numpy array)
     """
     v1 = p2 - p1  # 1つ目の辺のベクトル
     v2 = p3 - p1  # 2つ目の辺のベクトル
-
     normal = np.cross(v1, v2)  # 外積を計算
-
-    if normalize:
-        normal = normal / np.linalg.norm(normal)  # 単位ベクトル化
-
+    normal = normal / np.linalg.norm(normal)  # 単位ベクトル化
     return normal
 
 
 class CameraCalibModel:
     def __init__(self, w_points: np.ndarray, planes: np.ndarray, p_dist: float, v_eye: np.ndarray,
-                 v_light: np.ndarray, f: float):
+                 v_light: np.ndarray, f: float, size: float):
         self._w_points = w_points  # ndim=2, (N, 3), unit: mm
         self._planes = planes  # ndim=2, (N, 4, 3), unit: mm
         self._p_dist = p_dist  # eye distance from origin
         self._v_eye = v_eye  # ndim=1, (3,), unit: mm  eye direction
         self._v_light = v_light  # ndim=1, (3,), unit: mm  light direction
         self._f = f  # focal length (float)
+        self._size = size  # size of box (float) unit: mm
 
     def get_world_point_count(self) -> int:
         return self._w_points.shape[0]
 
     def get_world_point(self, i) -> tuple[float, float, float]:
-        return tuple(map(float, self._w_points[i]))
+        return (
+            float(self._w_points[i][0]),
+            float(self._w_points[i][1]),
+            float(self._w_points[i][2]),
+        )
+
+    def get_size(self) -> float:
+        return self._size
 
     def render_3d(
             self,
             width: int,
             height: int,
-            p_highlight: int | None = None,
+            p_highlighted: dict[int, tuple[int, int, int]] = None,
     ) -> np.ndarray:
         canvas = np.zeros((height, width, 3), np.uint8)
 
@@ -148,9 +148,9 @@ class CameraCalibModel:
 
         # draw points
         for i, p in enumerate(self._w_points):
-            if i == p_highlight:
-                color = 0, 0, 255
-                thickness = 3
+            if p_highlighted is not None and i in p_highlighted:
+                color = p_highlighted[i]
+                thickness = 2
             else:
                 color = 255, 0, 0
                 thickness = 1
@@ -159,7 +159,7 @@ class CameraCalibModel:
                 cv2.circle(
                     canvas,
                     (int(p2d[0]), int(p2d[1])),
-                    2,
+                    3,
                     color,
                     thickness,
                 )
@@ -334,6 +334,7 @@ DEFAULT_CALIB_MODEL = CameraCalibModel(
     v_eye=np.array([-0.9, -0.9, -1]),
     v_light=np.array([-0.3, -0.4, -0.6]),
     f=1.3,
+    size=80,
 )
 
 if __name__ == '__main__':
@@ -341,7 +342,9 @@ if __name__ == '__main__':
         im = DEFAULT_CALIB_MODEL.render_3d(
             500,
             500,
-            p_highlight=int(time.time() * 3) % DEFAULT_CALIB_MODEL.get_world_point_count(),
+            p_highlighted={
+                int(time.time() * 3) % DEFAULT_CALIB_MODEL.get_world_point_count(): (0, 0, 255)
+            },
         )
 
         cv2.imshow("win", im)

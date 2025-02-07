@@ -44,6 +44,8 @@ class CV2MouseHandler:
         self._last_xy: tuple[int, int] | None = None
 
     def _mouse_callback(self, evt, x, y, flags, param) -> None:
+        _ = param
+
         self._last_xy = x, y
 
         modifiers = []

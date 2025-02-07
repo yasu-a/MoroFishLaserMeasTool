@@ -13,6 +13,7 @@ from scene.select_item import SelectItemDelegate, SelectItemScene
 
 
 class CameraResolutionSelectItemDelegate(SelectItemDelegate):
+    # noinspection SpellCheckingInspection
     RESOLUTIONS = [
         ("144p", 256, 144),
         ("240p", 427, 240),
@@ -148,7 +149,7 @@ class GlobalConfigScene(MyScene):
             self.get_app().move_to(
                 SelectItemScene(
                     self.get_app(),
-                    CameraResolutionSelectItemDelegate(),
+                    CameraResolutionSelectItemDelegate(self.get_app()),
                 )
             )
             return

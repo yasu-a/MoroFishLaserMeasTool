@@ -1,7 +1,10 @@
+from app_logging import create_logger
 from camera_server import CameraServer
 from my_app import MyApplication
 from record_server import RecordServer
 
+_logger = create_logger()
+_logger.debug("DEBUG LOG ENABLED")
 
 def main():
     with CameraServer() as camera_server, RecordServer() as record_server:
