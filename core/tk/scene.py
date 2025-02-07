@@ -5,15 +5,15 @@ from typing import TypeVar
 import cv2
 import numpy as np
 
-from app_tk.component.component import Component
-from app_tk.event import KeyEvent, MouseEvent
-from app_tk.key import Key
-from app_tk.rendering import RenderingContext
+from core.tk.component.component import Component
+from core.tk.event import KeyEvent, MouseEvent
+from core.tk.key import Key
+from core.tk.rendering import RenderingContext
 
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from app_tk.app import Application
+    from core.tk.app import Application
 
 
 class SceneEventHandlers(ABC):

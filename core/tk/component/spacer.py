@@ -1,6 +1,6 @@
-from app_tk.component.component import Component
-from app_tk.event import KeyEvent
-from app_tk.rendering import RenderingContext, RenderingResult
+from core.tk.component.component import Component
+from core.tk.event import KeyEvent
+from core.tk.rendering import RenderingContext, RenderingResult
 
 
 class SpacerComponent(Component):

@@ -1,26 +1,61 @@
+import copy
 import time
 
 import cv2
 
+import repo.global_config
 from active_profile_names import ActiveProfileNames
-from app_tk.app import Application
-from app_tk.event import KeyEvent
-from app_tk.key import Key
-from camera_server import CameraServer, CameraInfo, CaptureResult, VideoSpec
+from app_logging import create_logger
+from camera_server import CameraServer, CaptureResult, CameraInfo, \
+    UnavailableCameraInfo
+from core.tk.app import Application
+from core.tk.event import KeyEvent
+from core.tk.key import Key
 from fps_counter import FPSCounter
 from record_server import RecordServer
-from scene_main import MainScene
+from scene.main_menu import MainScene
+
+
+class _CameraConfigObserver:
+    @classmethod
+    def _get_hash_of_camera_config(cls):
+        global_config = repo.global_config.get()
+        camera_dev_id = copy.deepcopy(global_config.camera_dev_id)
+        camera_spec = copy.deepcopy(global_config.camera_spec)
+        return hash((camera_dev_id, camera_spec))
+
+    def __init__(self):
+        self._hash = self._get_hash_of_camera_config()
+        self._mtime = repo.global_config.get_mtime()
+
+    def is_modified(self) -> bool:
+        old_mtime = self._mtime
+        current_mtime = repo.global_config.get_mtime()
+        if old_mtime == current_mtime:
+            return False
+        else:
+            self._mtime = current_mtime
+
+        old_hash = self._hash
+        current_hash = self._get_hash_of_camera_config()
+        self._hash = current_hash
+        return old_hash != current_hash
 
 
 class MyApplication(Application):
+    _logger = create_logger()
+
     def __init__(self, camera_server: CameraServer, record_server: RecordServer):
         super().__init__()
+
         self.camera_server = camera_server
         self.record_server = record_server
-        self.camera_info: CameraInfo | None = None
+
+        self.camera_info: CameraInfo = UnavailableCameraInfo()
+        self._camera_config_observer = _CameraConfigObserver()
+
         self.last_capture: CaptureResult | None = None
         self.fps_counter = FPSCounter()
-        self.ui_color = (0, 180, 0)
         self.is_recording: bool = False
         self.last_recording_queue_count: int | None = None
         self.active_profile_names = ActiveProfileNames()
@@ -51,29 +86,45 @@ class MyApplication(Application):
                     print("Recording stopped")
                 return True
 
-    def loop(self):
-        self.camera_server.request_open(0, VideoSpec(width=1920, height=1080, fps=60))
-        self.camera_server.request_camera_info()
+    def reflect_camera_config(self):
+        global_config = repo.global_config.get()
 
-        cv2.namedWindow("win")
-        self._mouse_handler.register_callback("win")
+        self.camera_server.request_open(
+            dev_id=global_config.camera_dev_id,
+            spec=global_config.camera_spec
+        )
+        self.camera_server.request_camera_info()
 
         while True:
             info = self.camera_server.get_requested_camera_info()
             if info is None:
                 continue
-            if info.actual_spec != info.configured_spec:
-                print("INVALID CAMERA SPEC")
-                print("CONFIGURED SPEC")
-                print(info.configured_spec)
-                print("ACTUAL SPEC")
-                print(info.actual_spec)
-            self.camera_info = info
             break
+        self.camera_info = info
+
+        if info.is_available:
+            if info.actual_spec != info.configured_spec:
+                self._logger.error(
+                    f"Camera {global_config.camera_dev_id!r} configuration mismatch\n"
+                    f"expected={global_config.camera_spec!r}\n"
+                    f"actual={info.actual_spec!r}"
+                )
+
+    def _is_camera_config_modified(self) -> bool:
+        return self._camera_config_observer.is_modified()
+
+    def loop(self):
+        cv2.namedWindow("win")
+        self._mouse_handler.register_callback("win")
+
+        self.reflect_camera_config()
 
         self.move_to(MainScene(self))
 
         while True:
+            if self._is_camera_config_modified():
+                self.reflect_camera_config()
+
             capture_results = self.camera_server.get_all_frames()
             for capture_result in capture_results:
                 self.fps_counter.add(capture_result.timestamp)

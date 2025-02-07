@@ -1,4 +1,6 @@
 import time
+from pprint import pprint
+
 import cv2
 import numpy as np
 
@@ -85,8 +87,8 @@ class CameraCalibModel:
 
         v_eye = self._v_eye / np.linalg.norm(self._v_eye)
         v_eye = v_eye + np.array([
-            0.05 * np.sin(2 * np.pi * 0.1 * time.time()),
-            0.01 * np.cos(2 * np.pi * 0.1 * time.time()),
+            0.1 * np.sin(2 * np.pi * 0.05 * time.time()),
+            0.05 * np.cos(2 * np.pi * 0.05 * time.time()),
             0,
         ])
         p_eye = self._p_dist * -v_eye
@@ -163,6 +165,41 @@ class CameraCalibModel:
                 )
 
         return canvas
+
+
+def create_board(p1, p2, p3, p4, thickness, vx=False, vy=False, vz=False, remove: list[int] = None):
+    # 平面(p1, p2, p3, p4)
+    p1 = np.array(p1)
+    p2 = np.array(p2)
+    p3 = np.array(p3)
+    p4 = np.array(p4)
+
+    delta = np.array([
+        thickness if vx else 0,
+        thickness if vy else 0,
+        thickness if vz else 0,
+    ])
+
+    # 押し出す
+    q1 = p1 + delta
+    q2 = p2 + delta
+    q3 = p3 + delta
+    q4 = p4 + delta
+
+    # 側面も含めて矩形群を作る
+    rects = [
+        (p1, p2, p3, p4),
+        (q1, q2, q3, q4),
+        (p1, q1, q2, p2),  # 左上
+        (p2, q2, q3, p3),  # 右上
+        (p3, q3, q4, p4),  # 右下
+        (p4, q4, q1, p1),  # 左下
+    ]
+
+    planes = np.array(rects)
+    if remove is not None:
+        planes = np.delete(planes, remove, axis=0)
+    return planes
 
 
 DEFAULT_CALIB_MODEL = CameraCalibModel(
@@ -243,40 +280,55 @@ DEFAULT_CALIB_MODEL = CameraCalibModel(
         [70, 0, 75],
     ]),
     planes=np.array([
-        [
-            [0, 0, 0],
-            [0, 80, 0],
+        *create_board(
+            [0, -4, -4],
+            [0, 80, -4],
             [0, 80, 80],
-            [0, 0, 80],
-        ],
-        [
-            [0, 0, 0],
-            [80, 0, 0],
+            [0, -4, 80],
+            thickness=-4,
+            vx=True,
+            remove=[2, 5],
+        ),
+        *create_board(
+            [0, -4, 0],
+            [80, -4, 0],
             [80, 80, 0],
             [0, 80, 0],
-        ],
-        [
+            thickness=-4,
+            vz=True,
+            remove=[2, 5],
+        ),
+        *create_board(
             [0, 0, 0],
             [80, 0, 0],
             [80, 0, 80],
             [0, 0, 80],
-        ],
-        *(
-            [
+            thickness=-4,
+            vy=True,
+            remove=[2, 5],
+        ),
+        *np.array([
+            create_board(
                 [0, 20 * i + 20, 60 - 20 * i],
                 [80, 20 * i + 20, 60 - 20 * i],
-                [80, 20 * i, 60 - 20 * i],
-                [0, 20 * i, 60 - 20 * i],
-            ] for i in range(4)
-        ),
-        *(
-            [
+                [80, 20 * i - 2, 60 - 20 * i],
+                [0, 20 * i - 2, 60 - 20 * i],
+                thickness=-2,
+                vz=True,
+                remove=[1, 2, 4, 5],
+            ) for i in range(4)
+        ]).reshape(-1, 4, 3),
+        *np.array([
+            create_board(
                 [0, 60 - i * 20, 20 * i],
                 [80, 60 - i * 20, 20 * i],
                 [80, 60 - i * 20, 20 * i + 20],
                 [0, 60 - i * 20, 20 * i + 20],
-            ] for i in range(4)
-        ),
+                thickness=-2,
+                vy=True,
+                remove=[1, 2, 4, 5],
+            ) for i in range(4)
+        ]).reshape(-1, 4, 3),
     ]),
     p_dist=300,
     v_eye=np.array([-0.9, -0.9, -1]),
@@ -284,9 +336,14 @@ DEFAULT_CALIB_MODEL = CameraCalibModel(
     f=1.3,
 )
 
-# while True:
-#     im = DEFAULT_CALIB_MODEL.render_3d(500, 500, p_highlight=int(time.time() * 3) % 60)
-#
-#     cv2.imshow("win", im)
-#     if cv2.waitKey(1) == ord("q"):
-#         break
+if __name__ == '__main__':
+    while True:
+        im = DEFAULT_CALIB_MODEL.render_3d(
+            500,
+            500,
+            p_highlight=int(time.time() * 3) % DEFAULT_CALIB_MODEL.get_world_point_count(),
+        )
+
+        cv2.imshow("win", im)
+        if cv2.waitKey(1) == ord("q"):
+            break

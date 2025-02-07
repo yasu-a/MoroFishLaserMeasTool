@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from app_tk.key import Key, Modifier
+from core.tk.key import Key, Modifier
 
 
 @dataclass(frozen=True)

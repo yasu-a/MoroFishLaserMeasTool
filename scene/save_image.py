@@ -4,16 +4,16 @@ import cv2
 import numpy as np
 
 import repo.image
-from app_tk.component.button import ButtonComponent
-from app_tk.component.component import Component
-from app_tk.component.label import LabelComponent
-from app_tk.component.line_edit import LineEditComponent
-from app_tk.component.spacer import SpacerComponent
+from core.tk.component.button import ButtonComponent
+from core.tk.component.component import Component
+from core.tk.component.label import LabelComponent
+from core.tk.component.line_edit import LineEditComponent
+from core.tk.component.spacer import SpacerComponent
 from model import Image
-from scene_base import MyScene
+from scene.my_scene import MyScene
 
 if TYPE_CHECKING:
-    from app_tk.app import Application
+    from core.tk.app import Application
 
 
 class SaveImageScene(MyScene):
@@ -89,4 +89,4 @@ class SaveImageScene(MyScene):
 
             return
         if sender.get_name() == "b-back":
-            self.get_app().go_back()
+            self.get_app().move_back()

@@ -1,11 +1,11 @@
 import cv2
 
-from app_tk.app import Application
-from app_tk.component.component import Component
-from app_tk.event import KeyEvent
-from app_tk.key import Key
-from app_tk.rendering import RenderingContext, RenderingResult
-from app_tk.scene import Scene
+from core.tk.app import Application
+from core.tk.component.component import Component
+from core.tk.event import KeyEvent
+from core.tk.key import Key
+from core.tk.rendering import RenderingContext, RenderingResult
+from core.tk.scene import Scene
 
 
 class ButtonComponent(Component):

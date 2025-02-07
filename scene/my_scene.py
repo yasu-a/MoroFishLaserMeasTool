@@ -1,6 +1,6 @@
 import numpy as np
 
-from app_tk.scene import Scene
+from core.tk.scene import Scene
 from camera_server import CaptureResult
 from typing import TYPE_CHECKING
 

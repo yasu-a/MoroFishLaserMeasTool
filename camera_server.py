@@ -1,4 +1,5 @@
 import time
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from multiprocessing import Queue, Process
 from queue import Empty
@@ -7,21 +8,7 @@ import cv2
 import numpy as np
 
 from app_logging import create_logger
-
-
-@dataclass(frozen=True)
-class VideoSpec:
-    width: int
-    height: int
-    fps: float
-
-    @classmethod
-    def from_video_capture(cls, cap: cv2.VideoCapture) -> "VideoSpec":
-        return cls(
-            width=int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)),
-            height=int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
-            fps=cap.get(cv2.CAP_PROP_FPS),
-        )
+from model.camera_spec import CameraSpec
 
 
 @dataclass(slots=True)
@@ -33,62 +20,71 @@ class CaptureResult:
 class VideoReader:
     _logger = create_logger()
 
-    def __init__(self, dev_name: int, video_spec: VideoSpec):
-        self._dev_name = dev_name
+    def __init__(self, dev_id: int, video_spec: CameraSpec):
+        self._dev_id = dev_id
         self._video_spec = video_spec
         self._cap: cv2.VideoCapture | None = None
         self.open()
 
     def get_device_name(self) -> int:
-        return self._dev_name
+        return self._dev_id
 
-    def get_configured_spec(self) -> VideoSpec:
+    def get_configured_spec(self) -> CameraSpec:
         return self._video_spec
 
-    def get_actual_spec(self) -> VideoSpec:
+    def get_actual_spec(self) -> CameraSpec:
         self._check_open()
-        return VideoSpec.from_video_capture(self._cap)
+        return CameraSpec.from_video_capture(self._cap)
 
     def is_open(self) -> bool:
         return self._cap is not None and self._cap.isOpened()
 
     def _check_open(self) -> None:
         if not self.is_open():
-            raise RuntimeError(f"Camera {self._dev_name} reader is not open")
+            raise RuntimeError(f"Camera {self._dev_id} reader is not open")
 
     def open(self):
+        self._logger.info(f"Opening camera {self._dev_id}")
+
         # カメラを開く
-        self._cap = cv2.VideoCapture(self._dev_name)
+        self._cap = cv2.VideoCapture(self._dev_id)
         if not self._cap.isOpened():
+            self._logger.error(f"Failed to create camera with OpenCV: {self._dev_id}")
             self._cap = None
 
         # キャプチャ設定
-        self._logger.info(f"Setting width={self.get_configured_spec().width}")
-        self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.get_configured_spec().width)
-        self._logger.info(f"Setting height={self.get_configured_spec().height}")
-        self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.get_configured_spec().height)
-        self._logger.info(f"Setting fps={self.get_configured_spec().fps}")
-        self._cap.set(cv2.CAP_PROP_FPS, self.get_configured_spec().fps)
-        if not self._cap.isOpened():
-            self._cap = None
+        if self._cap is not None:
+            self._logger.info(f"Setting width={self.get_configured_spec().width}")
+            self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.get_configured_spec().width)
+            self._logger.info(f"Setting height={self.get_configured_spec().height}")
+            self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.get_configured_spec().height)
+            self._logger.info(f"Setting fps={self.get_configured_spec().fps}")
+            self._cap.set(cv2.CAP_PROP_FPS, self.get_configured_spec().fps)
+            if not self._cap.isOpened():
+                self._logger.error(f"Failed to set camera {self._dev_id} configuration")
+                self._cap = None
 
         # 設定を検証
-        if self.get_configured_spec() != self.get_actual_spec():
-            self._logger.error(
-                f"Camera {self._dev_name!r} configuration mismatch\n"
-                f"expected={self.get_configured_spec()!r}\n"
-                f"actual={self.get_actual_spec()!r}"
-            )
-            self._cap = None
+        if self._cap is not None:
+            if self.get_configured_spec() != self.get_actual_spec():
+                self._logger.error(
+                    f"Camera {self._dev_id!r} configuration mismatch\n"
+                    f"expected={self.get_configured_spec()!r}\n"
+                    f"actual={self.get_actual_spec()!r}"
+                )
+                # self._cap = None
 
         if self._cap is not None:
-            self._logger.info(f"Camera {self._dev_name!r} open")
+            self._logger.info(f"Camera {self._dev_id!r} open")
         else:
-            self._logger.error(f"Failed to open camera {self._dev_name}")
+            self._logger.error(f"Failed to open camera {self._dev_id}")
 
     def close(self) -> None:
-        self._cap.release()
-        self._cap = None
+        if self.is_open():
+            self._logger.info(f"Closing camera {self._dev_id!r}")
+            self._cap.release()
+            self._cap = None
+            self._logger.info(f"Camera {self._dev_id!r} closed")
 
     def read(self) -> CaptureResult | None:
         self._check_open()
@@ -100,19 +96,74 @@ class VideoReader:
             return None
 
 
-@dataclass(frozen=True)
-class CameraInfo:
-    is_available: bool
-    dev_name: int | None
-    configured_spec: VideoSpec | None
-    actual_spec: VideoSpec | None
+class CameraInfo(ABC):
+    @property
+    @abstractmethod
+    def is_available(self) -> bool:
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    def dev_id(self) -> int:
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    def configured_spec(self) -> CameraSpec:
+        raise NotImplementedError()
+
+    @property
+    @abstractmethod
+    def actual_spec(self) -> CameraSpec:
+        raise NotImplementedError()
+
+
+class UnavailableCameraInfo(CameraInfo):
+    @property
+    def is_available(self) -> bool:
+        return False
+
+    @property
+    def dev_id(self) -> int:
+        raise ValueError("Camera info is not available")
+
+    @property
+    def configured_spec(self) -> CameraSpec:
+        raise ValueError("Camera info is not available")
+
+    @property
+    def actual_spec(self) -> CameraSpec:
+        raise ValueError("Camera info is not available")
+
+
+class AvailableCameraInfo(CameraInfo):
+    def __init__(self, dev_id: int, configured_spec: CameraSpec, actual_spec: CameraSpec):
+        self._dev_id = dev_id
+        self._configured_spec = configured_spec
+        self._actual_spec = actual_spec
+
+    @property
+    def is_available(self) -> bool:
+        return True
+
+    @property
+    def dev_id(self) -> int:
+        return self._dev_id
+
+    @property
+    def configured_spec(self) -> CameraSpec:
+        return self._configured_spec
+
+    @property
+    def actual_spec(self) -> CameraSpec:
+        return self._actual_spec
 
 
 class CameraServer:
     _logger = create_logger()
 
     def __init__(self):
-        self._configured_spec: VideoSpec | None = None
+        self._configured_spec: CameraSpec | None = None
         self._q_in = Queue()  # item: (command name, data)
         self._q_out = Queue()  # item: CaptureResult
         self._q_frames = Queue()
@@ -140,29 +191,23 @@ class CameraServer:
                     if reader is not None and reader.is_open():
                         reader.close()
 
-                    dev_name, spec = data
-                    assert isinstance(dev_name, int), f"Invalid dev_name: {dev_name}"
-                    assert isinstance(spec, VideoSpec), f"Invalid video_spec: {spec}"
-                    reader = VideoReader(dev_name, spec)
+                    dev_id, spec = data
+                    assert isinstance(dev_id, int), f"Invalid dev_id: {dev_id}"
+                    assert isinstance(spec, CameraSpec), f"Invalid video_spec: {spec}"
+                    reader = VideoReader(dev_id, spec)
                 elif command_name == "close":
                     if reader is not None and reader.is_open():
                         reader.close()
                         reader = None
                 elif command_name == "get_camera_info":
                     if reader is not None and reader.is_open():
-                        camera_info = CameraInfo(
-                            is_available=True,
-                            dev_name=reader.get_device_name(),
+                        camera_info = AvailableCameraInfo(
+                            dev_id=reader.get_device_name(),
                             configured_spec=reader.get_configured_spec(),
                             actual_spec=reader.get_actual_spec(),
                         )
                     else:
-                        camera_info = CameraInfo(
-                            is_available=False,
-                            dev_name=None,
-                            configured_spec=None,
-                            actual_spec=None,
-                        )
+                        camera_info = UnavailableCameraInfo()
                     q_out.put(camera_info)
                 else:
                     assert False, f"Unknown command: {command_name}"
@@ -177,8 +222,8 @@ class CameraServer:
     def request_stop(self) -> None:
         self._q_in.put(("stop", None))
 
-    def request_open(self, dev_name: int, spec: VideoSpec) -> None:
-        self._q_in.put(("open", (dev_name, spec)))
+    def request_open(self, dev_id: int, spec: CameraSpec) -> None:
+        self._q_in.put(("open", (dev_id, spec)))
 
     def request_close(self) -> None:
         self._q_in.put(("close", None))
@@ -186,7 +231,7 @@ class CameraServer:
     def request_camera_info(self) -> None:
         self._q_in.put(("get_camera_info", None))
 
-    def get_requested_camera_info(self) -> CameraInfo | None:
+    def get_requested_camera_info(self) -> CameraInfo | None:  # None if still no data available
         try:
             data = self._q_out.get(block=False)
         except Empty:

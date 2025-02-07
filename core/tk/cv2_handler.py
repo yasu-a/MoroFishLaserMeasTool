@@ -1,7 +1,7 @@
 import cv2
 
-from app_tk.event import KeyEvent, MouseEvent
-from app_tk.key import Key, code_to_key, Modifier
+from core.tk.event import KeyEvent, MouseEvent
+from core.tk.key import Key, code_to_key, Modifier
 
 
 class CV2KeyHandler:

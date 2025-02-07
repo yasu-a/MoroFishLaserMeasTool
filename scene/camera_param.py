@@ -4,23 +4,22 @@ import cv2
 import numpy as np
 
 import repo.image
-from app_tk.component.button import ButtonComponent
-from app_tk.component.check_box import CheckBoxComponent
-from app_tk.component.component import Component
-from app_tk.component.label import LabelComponent
-from app_tk.component.line_edit import LineEditComponent
-from app_tk.component.spacer import SpacerComponent
-from app_tk.event import KeyEvent, MouseEvent
-from app_tk.key import Key
-from app_tk.rendering import RenderingContext
 from camera_calib_model import CameraCalibModel, DEFAULT_CALIB_MODEL
+from core.tk.component.button import ButtonComponent
+from core.tk.component.check_box import CheckBoxComponent
+from core.tk.component.component import Component
+from core.tk.component.label import LabelComponent
+from core.tk.component.line_edit import LineEditComponent
+from core.tk.component.spacer import SpacerComponent
+from core.tk.event import KeyEvent, MouseEvent
+from core.tk.key import Key
 from dot_snap import DotSnapComputer
 from model import Image
-from scene_base import MyScene
-from scene_select_item import SelectItemScene, SelectItemDelegate
+from scene.my_scene import MyScene
+from scene.select_item import SelectItemScene, SelectItemDelegate
 
 if TYPE_CHECKING:
-    from app_tk.app import Application
+    from core.tk.app import Application
 
 
 class SelectImageScene(SelectItemScene):
@@ -189,4 +188,4 @@ class CameraParamScene(MyScene):
             )
             return
         if sender.get_name() == "b-back":
-            self.get_app().go_back()
+            self.get_app().move_back()

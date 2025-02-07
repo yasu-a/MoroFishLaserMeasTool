@@ -1,14 +1,17 @@
 from abc import ABC, abstractmethod
 
-from app_tk.app import Application
-from app_tk.component.button import ButtonComponent
-from app_tk.component.component import Component
-from app_tk.component.label import LabelComponent
-from app_tk.component.spacer import SpacerComponent
-from scene_base import MyScene
+from core.tk.app import Application
+from core.tk.component.button import ButtonComponent
+from core.tk.component.component import Component
+from core.tk.component.label import LabelComponent
+from core.tk.component.spacer import SpacerComponent
+from scene.my_scene import MyScene
 
 
 class SelectItemDelegate(ABC):
+    def item_count_per_page(self) -> int:
+        return 10
+
     @abstractmethod
     def list_name(self) -> list[str]:
         raise NotImplementedError()
@@ -20,8 +23,6 @@ class SelectItemDelegate(ABC):
 
 
 class SelectItemScene(MyScene):
-    N_ITEMS = 10
-
     def __init__(self, app: "Application", delegator: SelectItemDelegate):
         super().__init__(app)
         self._delegator = delegator
@@ -30,8 +31,8 @@ class SelectItemScene(MyScene):
         names = self._delegator.list_name()
         self._names_per_page: list[list[str]] = []
         while names:
-            self._names_per_page.append(names[:self.N_ITEMS])
-            names = names[self.N_ITEMS:]
+            self._names_per_page.append(names[:delegator.item_count_per_page()])
+            names = names[delegator.item_count_per_page():]
         if not self._names_per_page:
             self._names_per_page.append([])
 
@@ -40,7 +41,7 @@ class SelectItemScene(MyScene):
     def load_event(self):
         self.add_component(LabelComponent, "Select Item", bold=True)
         self.add_component(SpacerComponent)
-        for i in range(self.N_ITEMS):
+        for i in range(self._delegator.item_count_per_page()):
             self.add_component(
                 ButtonComponent,
                 "",
@@ -57,7 +58,7 @@ class SelectItemScene(MyScene):
     def update(self):
         focus_component = self.get_focus_component()
         selected_item_name = None
-        for i in range(self.N_ITEMS):
+        for i in range(self._delegator.item_count_per_page()):
             item_btn = self.find_component(ButtonComponent, f"b-item-{i}")
             if focus_component is item_btn:
                 selected_item_name = item_btn.get_text()
@@ -74,7 +75,7 @@ class SelectItemScene(MyScene):
             page = 0
         if page >= len(self._names_per_page):
             page = len(self._names_per_page) - 1
-        for i in range(self.N_ITEMS):
+        for i in range(self._delegator.item_count_per_page()):
             self.find_component(ButtonComponent, f"b-item-{i}").set_text(
                 self._names_per_page[page][i] if i < len(self._names_per_page[page]) else "-------"
             )
@@ -91,7 +92,7 @@ class SelectItemScene(MyScene):
             if sender.get_name() == "b-next":
                 self.set_page_if_possible(self._page + 1)
                 return
-            for i in range(self.N_ITEMS):
+            for i in range(self._delegator.item_count_per_page()):
                 if sender.get_name() == f"b-item-{i}":
                     if len(self._names_per_page[self._page]) <= i:
                         return
@@ -104,7 +105,7 @@ class SelectItemScene(MyScene):
                             "info",
                             f"Item selected: {name}"
                         )
-                        self.get_app().go_back()
+                        self.get_app().move_back()
                     else:
                         self.get_app().make_toast(
                             "error",

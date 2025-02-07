@@ -5,19 +5,19 @@ from typing import Literal
 import cv2
 import numpy as np
 
-from app_tk.component.toast import Toast
-from app_tk.event import KeyEvent, MouseEvent
-from app_tk.key import Key
-from app_tk.cv2_handler import CV2KeyHandler, CV2MouseHandler
-from app_tk.rendering import RenderingContext
-from app_tk.scene import Scene
+from core.tk.component.toast import Toast
+from core.tk.event import KeyEvent, MouseEvent
+from core.tk.key import Key
+from core.tk.cv2_handler import CV2KeyHandler, CV2MouseHandler
+from core.tk.rendering import RenderingContext
+from core.tk.scene import Scene
 
 
 class Application(ABC):
     def __init__(
             self,
             cv2_wait_key_delay=10,
-            ui_color: tuple[int, int, int] = (0, 150, 0),
+            ui_color: tuple[int, int, int] = (0, 220, 0),
     ):
         self._cv2_wait_key_delay = cv2_wait_key_delay
         self._ui_color = ui_color
@@ -51,7 +51,7 @@ class Application(ABC):
         scene.show_event()
         self._scene_stack.append(scene)
 
-    def go_back(self):
+    def move_back(self):
         if self._scene_stack[-1].is_stationed():
             return
         if self._scene_stack:
@@ -90,7 +90,7 @@ class Application(ABC):
             return True
         if event.down:
             if event.key == Key.ESCAPE:
-                self.go_back()
+                self.move_back()
                 return True
         return False
 

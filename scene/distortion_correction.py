@@ -4,17 +4,17 @@ import cv2
 import numpy as np
 
 import repo.distortion
-from app_tk.app import Application
-from app_tk.component.button import ButtonComponent
-from app_tk.component.component import Component
-from app_tk.component.label import LabelComponent
-from app_tk.component.spacer import SpacerComponent
-from app_tk.component.spin_box import SpinBoxComponent
-from app_tk.event import KeyEvent
-from app_tk.key import Key
+from core.tk.app import Application
+from core.tk.component.button import ButtonComponent
+from core.tk.component.component import Component
+from core.tk.component.label import LabelComponent
+from core.tk.component.spacer import SpacerComponent
+from core.tk.component.spin_box import SpinBoxComponent
+from core.tk.event import KeyEvent
+from core.tk.key import Key
 from model import DistortionParameters, DistortionCorrectionProfile
-from scene_base import MyScene
-from scene_save_profile import SaveProfileDelegate, SaveProfileScene
+from scene.my_scene import MyScene
+from scene.save_profile import SaveProfileDelegate, SaveProfileScene
 
 
 class DistortionCorrectionPoints:
@@ -127,6 +127,8 @@ class DistortionCorrectionScene(MyScene):
         self.add_component(ButtonComponent, "Start", name="b-toggle-detection")
         self.add_component(ButtonComponent, "Calculate Parameters and Save Profile",
                            name="b-save-profile")
+        self.add_component(SpacerComponent)
+        self.add_component(ButtonComponent, "Back", name="b-back")
 
     def update(self):
         self.find_component(LabelComponent, "info").set_text(
@@ -197,11 +199,20 @@ class DistortionCorrectionScene(MyScene):
             if sender.get_name() == "b-toggle-detection":
                 self.toggle_detection_enabled()
                 return
+            if sender.get_name() == "b-back":
+                self.get_app().move_back()
+                return
             if sender.get_name() == "b-save-profile":
                 self.get_app().make_toast(
                     "info",
                     "Calculating distortion parameters... please wait.",
                 )
+                if self.get_app().camera_info is None:
+                    self.get_app().make_toast(
+                        "error",
+                        "No camera information available",
+                    )
+                    return
                 width = self.get_app().camera_info.actual_spec.width
                 height = self.get_app().camera_info.actual_spec.height
                 try:

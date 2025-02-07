@@ -1,13 +1,13 @@
 from typing import TYPE_CHECKING
 
 import repo.distortion
-from app_tk.app import Application
-from app_tk.component.button import ButtonComponent
-from app_tk.component.component import Component
-from app_tk.component.label import LabelComponent
-from app_tk.component.spacer import SpacerComponent
-from scene_base import MyScene
-from scene_select_item import SelectItemDelegate, SelectItemScene
+from core.tk.app import Application
+from core.tk.component.button import ButtonComponent
+from core.tk.component.component import Component
+from core.tk.component.label import LabelComponent
+from core.tk.component.spacer import SpacerComponent
+from scene.my_scene import MyScene
+from scene.select_item import SelectItemDelegate, SelectItemScene
 
 if TYPE_CHECKING:
     from my_app import MyApplication
@@ -88,5 +88,5 @@ class SelectProfileMenuScene(MyScene):
             if sender.get_name() == "b-laser-param":
                 return
             if sender.get_name() == "b-back":
-                self._app.go_back()
+                self._app.move_back()
                 return

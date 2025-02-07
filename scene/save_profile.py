@@ -2,12 +2,12 @@ from abc import ABC, abstractmethod
 
 import cv2
 
-from app_tk.app import Application
-from app_tk.component.button import ButtonComponent
-from app_tk.component.component import Component
-from app_tk.component.label import LabelComponent
-from app_tk.component.line_edit import LineEditComponent
-from scene_base import MyScene
+from core.tk.app import Application
+from core.tk.component.button import ButtonComponent
+from core.tk.component.component import Component
+from core.tk.component.label import LabelComponent
+from core.tk.component.line_edit import LineEditComponent
+from scene.my_scene import MyScene
 
 
 class SaveProfileDelegate(ABC):
@@ -72,12 +72,12 @@ class SaveProfileScene(MyScene):
                     fail_message = self._delegator.execute(name)
                 if fail_message is None:
                     self.get_app().make_toast("info", "Profile saved")
-                    self.get_app().go_back()
+                    self.get_app().move_back()
                 else:
                     self.get_app().make_toast("error", f"Error: {fail_message}")
                 return
             if sender.get_name() == "b-cancel":
                 self.get_app().make_toast("error", f"Canceled")
-                self.get_app().go_back()
+                self.get_app().move_back()
                 return
         super().on_button_triggered(sender)
