@@ -50,6 +50,7 @@ if __name__ == '__main__':
         cv2.putText(image, text, (20, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.5, fg, 1, cv2.LINE_AA)
         im_lst.append(image)
 
+
     append_preview(
         fg=active_style.fg_color,
         bg=active_style.edge_color,
