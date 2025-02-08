@@ -2,25 +2,14 @@ from abc import ABC, abstractmethod
 
 from core.tk.component.button import ButtonComponent
 from core.tk.component.component import Component
+from core.tk.component.global_state import get_app
 from core.tk.component.label import LabelComponent
 from core.tk.component.spacer import SpacerComponent
+from core.tk.component.toast import Toast
 from scene.my_scene import MyScene
-
-from typing import TYPE_CHECKING, TypeVar
-
-if TYPE_CHECKING:
-    from core.tk.app import Application
-
-    A = TypeVar("A", bound=Application)
 
 
 class SelectItemDelegate(ABC):
-    def __init__(self, app: "A"):
-        self._app = app
-
-    def get_app(self) -> "A":
-        return self._app
-
     def item_count_per_page(self) -> int:
         return 10
 
@@ -34,12 +23,12 @@ class SelectItemDelegate(ABC):
         raise NotImplementedError()
 
     def after_selected(self) -> None:
-        self.get_app().move_back()
+        get_app().move_back()
 
 
 class SelectItemScene(MyScene):
-    def __init__(self, app: "Application", delegator: SelectItemDelegate):
-        super().__init__(app)
+    def __init__(self, delegator: SelectItemDelegate):
+        super().__init__()
         self._delegator = delegator
 
         self._page = 0
@@ -54,19 +43,21 @@ class SelectItemScene(MyScene):
         self._last_selected_name: str | None = None
 
     def load_event(self):
-        self.add_component(LabelComponent, "Select Item", bold=True)
-        self.add_component(SpacerComponent)
+        self.add_component(LabelComponent(self, "Select Item", bold=True))
+        self.add_component(SpacerComponent(self))
         for i in range(self._delegator.item_count_per_page()):
             self.add_component(
-                ButtonComponent,
-                "",
-                name=f"b-item-{i}",
+                ButtonComponent(
+                    self,
+                    "",
+                    name=f"b-item-{i}",
+                )
             )
-        self.add_component(SpacerComponent)
-        self.add_component(LabelComponent, "", name="l-info")
-        self.add_component(SpacerComponent)
-        self.add_component(ButtonComponent, "(Prev Page)", name="b-prev")
-        self.add_component(ButtonComponent, "(Next Page)", name="b-next")
+        self.add_component(SpacerComponent(self))
+        self.add_component(LabelComponent(self, "", name="l-info"))
+        self.add_component(SpacerComponent(self))
+        self.add_component(ButtonComponent(self, "(Prev Page)", name="b-prev"))
+        self.add_component(ButtonComponent(self, "(Next Page)", name="b-next"))
 
         self.set_page_if_possible(0)
 
@@ -99,7 +90,7 @@ class SelectItemScene(MyScene):
             f"{self._page + 1}/{len(self._names_per_page)}"
         )
 
-    def on_button_triggered(self, sender: Component) -> None:
+    def _on_button_triggered(self, sender: Component) -> None:
         if isinstance(sender, ButtonComponent):
             if sender.get_name() == "b-prev":
                 self.set_page_if_possible(self._page - 1)
@@ -116,15 +107,21 @@ class SelectItemScene(MyScene):
                         return
                     result = self._delegator.execute(name)
                     if result is None:
-                        self.get_app().make_toast(
-                            "info",
-                            f"Item selected: {name}"
+                        get_app().make_toast(
+                            Toast(
+                                self,
+                                "info",
+                                f"Item selected: {name}",
+                            )
                         )
                         self._delegator.after_selected()
                     else:
-                        self.get_app().make_toast(
-                            "error",
-                            f"Save Error: {result}"
+                        get_app().make_toast(
+                            Toast(
+                                self,
+                                "error",
+                                f"Save Error: {result}",
+                            )
                         )
                     return
-        super().on_button_triggered(sender)
+        super()._on_button_triggered(sender)

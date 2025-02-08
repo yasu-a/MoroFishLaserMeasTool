@@ -2,12 +2,12 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from core.tk.style import ApplicationUIStyle
+
 
 @dataclass(frozen=True)
-class RenderingContext:
-    canvas: np.ndarray
-    color: tuple[int, int, int]
-    max_width: int
+class UIRenderingContext:
+    style: ApplicationUIStyle
     font: int
     scale: float
     top: int
@@ -21,18 +21,14 @@ class RenderingContext:
     def font_offset_y(self) -> int:
         return int(round(self.font_height * 0.8, 0))
 
-    def update_buffer_by_alpha_blend_mask(
-            self,
-            x: int,
-            y: int,
-            mask: np.ndarray,
-            color: tuple[int, int, int],
-    ) -> None:
-        h, w = mask.shape[:2]
-        idx = slice(y, y + h), slice(x, x + w)
-        image_view = self.canvas[idx]
-        image_view[mask > 0, :] \
-            = (np.array(color)[None, None, :] * (mask > 0)[:, :, None])[mask > 0, :]
+
+class Canvas:
+    def __init__(self, im: np.ndarray):
+        self._im = im
+
+    @property
+    def im(self) -> np.ndarray:
+        return self._im
 
 
 @dataclass(frozen=True)

@@ -1,23 +1,21 @@
 import cv2
 
-from core.tk.app import Application
 from core.tk.component.component import Component
 from core.tk.event import KeyEvent
 from core.tk.key import Key
-from core.tk.rendering import RenderingContext, RenderingResult
+from core.tk.rendering import UIRenderingContext, RenderingResult, Canvas
 from core.tk.scene import Scene
 
 
 class LineEditComponent(Component):
     def __init__(
             self,
-            app: "Application",
             scene: "Scene",
             value: str = "",
             max_length: int = 25,
             name: str = None,
     ):
-        super().__init__(app, scene, name=name)
+        super().__init__(scene, name=name)
         self._max_length = max_length
         self._value = value
 
@@ -26,34 +24,41 @@ class LineEditComponent(Component):
 
     def set_value(self, value: str) -> None:
         self._value = value[:self._max_length]
-        self._scene.on_value_changed(self)
+        self.get_scene().notify_listener("value-changed", self)
 
-    def render(self, ctx: RenderingContext) -> RenderingResult:
+    def append_value(self, new_value: str) -> None:
+        self.set_value(self._value + new_value)
+
+    def pop_value(self) -> None:
+        if self._value:
+            self.set_value(self._value[:-1])
+
+    def render(self, canvas: Canvas, ctx: UIRenderingContext) -> RenderingResult:
         cv2.rectangle(
-            ctx.canvas,
+            canvas.im,
             (ctx.left + 20, ctx.top),
             (ctx.left + 300, ctx.top + ctx.font_height),
-            ctx.color,
+            ctx.style.fg_color,
             1,
         )
         cv2.putText(
-            ctx.canvas,
+            canvas.im,
             self._value,
             (ctx.left + 30, ctx.top + ctx.font_offset_y),
             ctx.font,
             ctx.scale,
-            ctx.color,
+            ctx.style.fg_color,
             thickness=1,
             lineType=cv2.LINE_AA,
         )
-        if self._scene.get_focus_component() is self:
+        if self.get_scene().get_focus_component() is self:
             cv2.putText(
-                ctx.canvas,
+                canvas.im,
                 ">",
                 (ctx.left, ctx.top + ctx.font_offset_y),
                 ctx.font,
                 ctx.scale,
-                ctx.color,
+                ctx.style.fg_color,
                 thickness=1,
                 lineType=cv2.LINE_AA,
             )
@@ -62,23 +67,15 @@ class LineEditComponent(Component):
         )
 
     def key_event(self, event: KeyEvent) -> bool:
-        if self._scene.get_focus_component() is self:
+        if self.get_scene().get_focus_component() is self:
             if event.down:
                 mapping = Key.printable_char_map()
                 char = mapping.get((event.key, event.modifiers))
-                prev_value = self._value
                 if char is not None:
-                    self._value += char
-                    if len(self._value) > self._max_length:
-                        self._value = self._value[:self._max_length]
-                    if prev_value != self._value:
-                        self._scene.on_value_changed(self)
+                    self.append_value(char)
                     return True
                 elif event.key == Key.BACKSPACE:
-                    if len(self._value) > 0:
-                        self._value = self._value[:-1]
-                    if prev_value != self._value:
-                        self._scene.on_value_changed(self)
+                    self.pop_value()
                     return True
         return super().key_event(event)
 

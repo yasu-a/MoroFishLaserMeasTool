@@ -4,21 +4,14 @@ import cv2
 import numpy as np
 
 
-def rotation_matrix_from_vectors(v1, v2):
-    """
-    v1をv2にマッピングする回転行列を計算
-    """
-    # 正規化（単位ベクトルにする）
-    v1 = v1 / np.linalg.norm(v1)
-    v2 = v2 / np.linalg.norm(v2)
-
-    # 回転軸を求める
-    axis = np.cross(v1, v2)
+# noinspection PyUnreachableCode
+def rotation_matrix_from_vectors(v1_norm, v2_norm):
+    axis = np.cross(v1_norm, v2_norm)
     axis_norm = np.linalg.norm(axis)
 
     # もし軸がゼロなら（v1とv2が同じ or 反対向き）
     if axis_norm < 1e-8:
-        if np.dot(v1, v2) > 0:  # 同じ向きなら単位行列
+        if np.dot(v1_norm, v2_norm) > 0:  # 同じ向きなら単位行列
             return np.eye(3)
         else:  # 反対向きなら適当な軸で180度回転
             return -np.eye(3)
@@ -26,25 +19,25 @@ def rotation_matrix_from_vectors(v1, v2):
     axis = axis / axis_norm  # 正規化
 
     # 回転角を求める
-    cos_theta = np.dot(v1, v2)
+    cos_theta = np.dot(v1_norm, v2_norm)
     sin_theta = np.sqrt(1 - cos_theta ** 2)
 
     # Rodriguesの回転公式を適用
-    K = np.array([[0, -axis[2], axis[1]],
-                  [axis[2], 0, -axis[0]],
-                  [-axis[1], axis[0], 0]])
+    k = np.array([
+        [0, -axis[2], axis[1]],
+        [axis[2], 0, -axis[0]],
+        [-axis[1], axis[0], 0]
+    ])
 
-    R = np.eye(3) + sin_theta * K + (1 - cos_theta) * np.dot(K, K)
+    mat_rot = np.eye(3) + sin_theta * k + (1 - cos_theta) * np.dot(k, k)
 
-    return R
+    return mat_rot
 
 
+# noinspection PyUnreachableCode
 def normal_from_three_points(p1, p2, p3):
     """
     3つの3D点から法線ベクトルを求める
-
-    :param p1, p2, p3: 3つの点 (numpy array)
-    :return: 法線ベクトル (numpy array)
     """
     v1 = p2 - p1  # 1つ目の辺のベクトル
     v2 = p3 - p1  # 2つ目の辺のベクトル
@@ -118,8 +111,8 @@ class CameraCalibModel:
 
         ofs_x, ofs_y = width / 2, height / 2
 
-        def convert(p):
-            x, y, z, _ = mat_world_to_camera @ np.array([*p, 1])
+        def convert(_p):
+            x, y, z, _ = mat_world_to_camera @ np.array([*_p, 1])
             return np.array([x / z * f + ofs_x, y / z * f + ofs_y])
 
         # draw planes

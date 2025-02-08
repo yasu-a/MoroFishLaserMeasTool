@@ -13,7 +13,6 @@ from core.tk.event import KeyEvent
 from core.tk.key import Key
 from fps_counter import FPSCounter
 from record_server import RecordServer
-from scene.main_menu import MainScene
 
 
 class _CameraConfigObserver:
@@ -59,12 +58,6 @@ class MyApplication(Application):
         self.is_recording: bool = False
         self.last_recording_queue_count: int | None = None
         self.active_profile_names = ActiveProfileNames()
-
-    def canvas_size_hint(self) -> tuple[int, int]:
-        if self.last_capture is not None:
-            return self.last_capture.frame.shape[1], self.last_capture.frame.shape[0]
-        else:
-            return 640, 480
 
     def key_event(self, event: KeyEvent) -> bool:
         if super().key_event(event):
@@ -118,8 +111,6 @@ class MyApplication(Application):
         self._mouse_handler.register_callback("win")
 
         self.reflect_camera_config()
-
-        self.move_to(MainScene(self))
 
         while True:
             if self._is_camera_config_modified():

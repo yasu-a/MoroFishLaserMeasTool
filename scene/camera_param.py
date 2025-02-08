@@ -7,10 +7,11 @@ from scipy.spatial import KDTree
 
 import repo.image
 from app_logging import create_logger
-from core.tk.app import Application
+from core.tk.app import ApplicationWindowSize
 from core.tk.component.button import ButtonComponent
 from core.tk.component.check_box import CheckBoxComponent
 from core.tk.component.component import Component
+from core.tk.component.global_state import get_app
 from core.tk.component.label import LabelComponent
 from core.tk.component.spacer import SpacerComponent
 from core.tk.component.spin_box import SpinBoxComponent
@@ -25,8 +26,7 @@ from util.solve_parameter import solve_equations_camera
 
 
 class CameraParaSelectImageDelegate(SelectItemDelegate):
-    def __init__(self, app: Application):
-        super().__init__(app)
+    def __init__(self):
         self._selected_image: Image | None = None
 
     def list_name(self) -> list[str]:
@@ -39,8 +39,8 @@ class CameraParaSelectImageDelegate(SelectItemDelegate):
 
     def after_selected(self) -> None:
         assert self._selected_image is not None
-        scene = CameraParamScene(self.get_app(), image=self._selected_image)
-        self.get_app().move_to(scene)
+        scene = CameraParamScene(image=self._selected_image)
+        get_app().move_to(scene)
 
 
 class InputPoints:
@@ -158,8 +158,8 @@ class SnapManager:
 
 
 class CameraParamScene(MyScene):
-    def __init__(self, app: "Application", image: Image):
-        super().__init__(app)
+    def __init__(self, *, image: Image):
+        super().__init__()
 
         self._snap_distance = 20
 
@@ -186,22 +186,36 @@ class CameraParamScene(MyScene):
         )
 
     def load_event(self):
-        self.add_component(LabelComponent, "Camera Parameter", bold=True)
-        self.add_component(SpacerComponent)
-        self.add_component(CheckBoxComponent, "Snap to auto detected points (S)", True,
-                           name="cb-snap")
-        self.add_component(CheckBoxComponent, "Show 3D model (TAB)", True, name="cb-show-3d-model")
-        self.add_component(SpacerComponent)
-        self.add_component(LabelComponent, "World point:")
+        self.add_component(LabelComponent(self, "Camera Parameter", bold=True))
+        self.add_component(SpacerComponent(self))
         self.add_component(
-            SpinBoxComponent,
-            min_value=0,
-            max_value=self._calib_model.get_world_point_count() - 1,
-            value=0,
-            name="sb-active-point-index",
+            CheckBoxComponent(
+                self,
+                "Snap to auto detected points (S)",
+                True,
+                name="cb-snap",
+            )
         )
-        self.add_component(SpacerComponent)
-        self.add_component(ButtonComponent, "Back", name="b-back")
+        self.add_component(
+            CheckBoxComponent(
+                self,
+                "Show 3D model (TAB)",
+                True,
+                name="cb-show-3d-model",
+            )
+        )
+        self.add_component(SpacerComponent(self))
+        self.add_component(LabelComponent(self, "World point:"))
+        self.add_component(
+            SpinBoxComponent(
+                self,
+                min_value=0,
+                max_value=self._calib_model.get_world_point_count() - 1,
+                name="sb-active-point-index",
+            )
+        )
+        self.add_component(SpacerComponent(self))
+        self.add_component(ButtonComponent(self, "Back", name="b-back"))
 
     def get_active_point_index(self) -> int:
         sb = self.find_component(SpinBoxComponent, "sb-active-point-index")
@@ -227,7 +241,7 @@ class CameraParamScene(MyScene):
             self.set_picture_in_picture(None)
         return super().update()
 
-    def render_canvas(self) -> np.ndarray | None:
+    def create_background(self, window_size: "ApplicationWindowSize") -> np.ndarray | None:
         canvas = self._image.data.copy()
         cv2.rectangle(
             canvas,
@@ -243,10 +257,10 @@ class CameraParamScene(MyScene):
 
         def _proj(p):
             nonlocal mat_camera
-            p3d = np.array([*p, 1])
-            p2d = mat_camera @ p3d
-            p2d /= p2d[2]
-            return p2d[:2].round(0).astype(int)
+            _p3d = np.array([*p, 1])
+            _p2d = mat_camera @ _p3d
+            _p2d /= _p2d[2]
+            return _p2d[:2].round(0).astype(int)
 
         size = self._calib_model.get_size()
         for v in np.arange(0, size + 1e-6, 20):
@@ -320,7 +334,7 @@ class CameraParamScene(MyScene):
                 cv2.LINE_AA,
             )
 
-        return canvas
+        return window_size.coerce(canvas)
 
     def move_onto_prev_point(self):
         sb = self.find_component(SpinBoxComponent, "sb-active-point-index")
@@ -375,24 +389,13 @@ class CameraParamScene(MyScene):
 
         return False
 
-    # def set_overwrite_state(self, state: bool):
-    #     if state:
-    #         # already exists
-    #         self.find_component(ButtonComponent, "b-save").set_text("Overwrite and Save")
-    #         self.find_component(LabelComponent, "l-info").set_text(
-    #             f"Name already exists. Are you sure to overwrite it?"
-    #         )
-    #     else:
-    #         self.find_component(ButtonComponent, "b-save").set_text("Save")
-    #         self.find_component(LabelComponent, "l-info").set_text("")
-
-    def on_value_changed(self, sender: Component) -> None:
+    def _on_value_changed(self, sender: Component) -> None:
         # if sender.get_name() == "e-name":
         #     name = self.find_component(LineEditComponent, "e-name").get_value()
         #     self.set_overwrite_state(repo.image.exists(name))
         #     return
-        super().on_value_changed(sender)
+        super()._on_value_changed(sender)
 
-    def on_button_triggered(self, sender: Component) -> None:
+    def _on_button_triggered(self, sender: Component) -> None:
         if sender.get_name() == "b-back":
-            self.get_app().move_back()
+            get_app().move_back()

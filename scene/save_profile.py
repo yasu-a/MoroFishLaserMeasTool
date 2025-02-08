@@ -2,11 +2,12 @@ from abc import ABC, abstractmethod
 
 import cv2
 
-from core.tk.app import Application
 from core.tk.component.button import ButtonComponent
 from core.tk.component.component import Component
+from core.tk.component.global_state import get_app
 from core.tk.component.label import LabelComponent
 from core.tk.component.line_edit import LineEditComponent
+from core.tk.component.toast import Toast
 from scene.my_scene import MyScene
 
 
@@ -22,20 +23,17 @@ class SaveProfileDelegate(ABC):
 
 
 class SaveProfileScene(MyScene):
-    def __init__(self, app: "Application", delegator: SaveProfileDelegate):
-        super().__init__(app)
+    def __init__(self, delegator: SaveProfileDelegate):
+        super().__init__()
         self._delegator = delegator
 
     def load_event(self):
-        self.add_component(LabelComponent, "Save Profile", bold=True)
-        self.add_component(LabelComponent, "Enter profile name:")
-        self.add_component(
-            LineEditComponent,
-            name="e-name",
-        )
-        self.add_component(LabelComponent, "", name="l-info")
-        self.add_component(ButtonComponent, "Save", name="b-save")
-        self.add_component(ButtonComponent, "Cancel", name="b-cancel")
+        self.add_component(LabelComponent(self, "Save Profile", bold=True))
+        self.add_component(LabelComponent(self, "Enter profile name:"))
+        self.add_component(LineEditComponent(self, name="e-name"))
+        self.add_component(LabelComponent(self, "", name="l-info"))
+        self.add_component(ButtonComponent(self, "Save", name="b-save"))
+        self.add_component(ButtonComponent(self, "Cancel", name="b-cancel"))
 
     CORNER_SUB_PIX_CRITERIA = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 
@@ -55,14 +53,14 @@ class SaveProfileScene(MyScene):
                 "Save"
             )
 
-    def on_value_changed(self, sender: Component) -> None:
+    def _on_value_changed(self, sender: Component) -> None:
         if isinstance(sender, LineEditComponent):
             if sender.get_name() == "e-name":
                 self.set_name_exists(self._delegator.check_exist(sender.get_value()))
                 return
-        super().on_value_changed(sender)
+        super()._on_value_changed(sender)
 
-    def on_button_triggered(self, sender: Component) -> None:
+    def _on_button_triggered(self, sender: Component) -> None:
         if isinstance(sender, ButtonComponent):
             if sender.get_name() == "b-save":
                 name = self.find_component(LineEditComponent, "e-name").get_value().strip()
@@ -71,13 +69,13 @@ class SaveProfileScene(MyScene):
                 else:
                     fail_message = self._delegator.execute(name)
                 if fail_message is None:
-                    self.get_app().make_toast("info", "Profile saved")
-                    self.get_app().move_back()
+                    get_app().make_toast(Toast(self, "info", "Profile saved"))
+                    get_app().move_back()
                 else:
-                    self.get_app().make_toast("error", f"Error: {fail_message}")
+                    get_app().make_toast(Toast(self, "error", f"Error: {fail_message}"))
                 return
             if sender.get_name() == "b-cancel":
-                self.get_app().make_toast("error", f"Canceled")
-                self.get_app().move_back()
+                get_app().make_toast(Toast(self, "error", f"Canceled"))
+                get_app().move_back()
                 return
-        super().on_button_triggered(sender)
+        super()._on_button_triggered(sender)

@@ -1,29 +1,23 @@
 import time
-from typing import TYPE_CHECKING
+from typing import Literal
 
 import cv2
 
 from core.tk.component.component import Component
-from core.tk.rendering import RenderingContext, RenderingResult
-
-if TYPE_CHECKING:
-    from core.tk.app import Application
-    from core.tk.scene import Scene
+from core.tk.rendering import UIRenderingContext, RenderingResult, Canvas
+from core.tk.scene import Scene
 
 
 class Toast(Component):
     def __init__(
             self,
-            app: "Application",
-            scene: "Scene",
+            scene: Scene,
+            message_type: Literal["info", "error"],
             message: str,
-            bg_color: tuple[int, int, int],
-            fg_color: tuple[int, int, int],
     ):
-        super().__init__(app, scene)
+        super().__init__(scene)
+        self._message_type = message_type
         self._message = message
-        self._bg_color = bg_color
-        self._fg_color = fg_color
         self._birthtime = time.monotonic()
         self._expired_in_seconds = max(1.5, min(5.0, len(self._message) / 20))
 
@@ -32,26 +26,32 @@ class Toast(Component):
 
     FONT_SCALE = 1.5
 
-    def render(self, ctx: RenderingContext) -> RenderingResult:
+    def render(self, canvas: Canvas, ctx: UIRenderingContext) -> RenderingResult:
         cv2.rectangle(
-            ctx.canvas,
-            (0, int(ctx.canvas.shape[0] - ctx.font_height * self.FONT_SCALE)),
-            (ctx.canvas.shape[1], ctx.canvas.shape[0]),
-            self._bg_color,
+            canvas.im,
+            (0, int(canvas.im.shape[0] - ctx.font_height * self.FONT_SCALE)),
+            (canvas.im.shape[1], canvas.im.shape[0]),
+            (
+                ctx.style.toast_info_bg_color if self._message_type == "info"
+                else ctx.style.toast_error_bg_color
+            ),
             -1,
         )
         cv2.putText(
-            ctx.canvas,
+            canvas.im,
             self._message,
             (
                 ctx.left,
-                int(ctx.canvas.shape[0]
+                int(canvas.im.shape[0]
                     - ctx.font_height * self.FONT_SCALE
                     + ctx.font_offset_y * self.FONT_SCALE)
             ),
             ctx.font,
             ctx.scale * self.FONT_SCALE,
-            self._fg_color,
+            (
+                ctx.style.toast_info_fg_color if self._message_type == "info"
+                else ctx.style.toast_error_fg_color
+            ),
             1,
             cv2.LINE_AA,
         )
@@ -61,23 +61,3 @@ class Toast(Component):
 
     def focus_count(self) -> int:
         return 0
-
-    @classmethod
-    def create_info(cls, app: "Application", scene: "Scene", message: str):
-        return cls(
-            app=app,
-            scene=scene,
-            message=message,
-            bg_color=(150, 0, 0),
-            fg_color=(255, 255, 255),
-        )
-
-    @classmethod
-    def create_error(cls, app: "Application", scene: "Scene", message: str):
-        return cls(
-            app=app,
-            scene=scene,
-            message=message,
-            bg_color=(0, 0, 150),
-            fg_color=(255, 255, 255),
-        )

@@ -126,6 +126,7 @@ class RecordServer:
         return self._q_frames.qsize()
 
     def shutdown(self) -> None:
+        # noinspection DuplicatedCode
         self._logger.info("Shutting down")
         self.request_stop()
         self._logger.info("Waiting for process")

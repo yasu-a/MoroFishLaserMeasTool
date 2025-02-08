@@ -1,21 +1,18 @@
+from typing import cast
+
 import numpy as np
 
-from core.tk.scene import Scene
 from camera_server import CaptureResult
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from my_app import MyApplication
+from core.tk.app import ApplicationWindowSize
+from core.tk.component.global_state import get_app
+from core.tk.scene import Scene
+from my_app import MyApplication
 
 
 class MyScene(Scene):
-    def get_app(self) -> "MyApplication":
-        # noinspection PyTypeChecker
-        return super().get_app()
-
-    def render_canvas(self) -> np.ndarray | None:
-        last_capture: CaptureResult | None = self.get_app().last_capture
+    def create_background(self, window_size: "ApplicationWindowSize") -> np.ndarray | None:
+        last_capture: CaptureResult | None = cast(MyApplication, get_app()).last_capture
         if last_capture is None:
             return None
         else:
-            return last_capture.frame.copy()
+            return window_size.coerce(last_capture.frame.copy())

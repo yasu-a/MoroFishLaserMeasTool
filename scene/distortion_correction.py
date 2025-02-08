@@ -1,18 +1,23 @@
 import time
+from typing import cast
 
 import cv2
 import numpy as np
 
 import repo.distortion
-from core.tk.app import Application
+from camera_server import CaptureResult
+from core.tk.app import ApplicationWindowSize
 from core.tk.component.button import ButtonComponent
 from core.tk.component.component import Component
+from core.tk.component.global_state import get_app
 from core.tk.component.label import LabelComponent
 from core.tk.component.spacer import SpacerComponent
 from core.tk.component.spin_box import SpinBoxComponent
+from core.tk.component.toast import Toast
 from core.tk.event import KeyEvent
 from core.tk.key import Key
 from model import DistortionParameters, DistortionCorrectionProfile
+from my_app import MyApplication
 from scene.my_scene import MyScene
 from scene.save_profile import SaveProfileDelegate, SaveProfileScene
 
@@ -92,43 +97,54 @@ class DistortionCorrectionSaveProfileDelegate(SaveProfileDelegate):
 
 
 class DistortionCorrectionScene(MyScene):
-    def __init__(self, app: "Application"):
-        super().__init__(app)
+    def __init__(self):
+        super().__init__()
 
         self._points = DistortionCorrectionPoints(cooling_down_time_seconds=1, max_snapshots=20)
         self._is_detection_enabled = False
 
     def load_event(self):
-        self.add_component(LabelComponent, "Distortion Correction", bold=True)
+        self.add_component(LabelComponent(self, "Distortion Correction", bold=True))
         self.add_component(
-            LabelComponent,
-            "Show the checkerboard to the camera and move it slightly across the entire scene\n"
-            "Press <SPACE> to start",
+            LabelComponent(
+                self,
+                "Show the checkerboard to the camera and move it slightly across the entire scene\n"
+                "Press <SPACE> to start",
+            ),
         )
-        self.add_component(SpacerComponent)
-        self.add_component(LabelComponent, "", name="info")
-        self.add_component(SpacerComponent)
-        self.add_component(LabelComponent, "Number of intersections X")
+        self.add_component(SpacerComponent(self))
+        self.add_component(LabelComponent(self, "", name="info"))
+        self.add_component(SpacerComponent(self))
+        self.add_component(LabelComponent(self, "Number of intersections X"))
         self.add_component(
-            SpinBoxComponent,
-            min_value=3,
-            max_value=20,
-            value=7,
-            name="num-intersections-1",
+            SpinBoxComponent(
+                self,
+                7,
+                min_value=3,
+                max_value=20,
+                name="num-intersections-1",
+            )
         )
-        self.add_component(LabelComponent, "Number of intersections Y")
+        self.add_component(LabelComponent(self, "Number of intersections Y"))
         self.add_component(
-            SpinBoxComponent,
-            min_value=3,
-            max_value=20,
-            value=8,
-            name="num-intersections-2",
+            SpinBoxComponent(
+                self,
+                8,
+                min_value=3,
+                max_value=20,
+                name="num-intersections-2",
+            )
         )
-        self.add_component(ButtonComponent, "Start", name="b-toggle-detection")
-        self.add_component(ButtonComponent, "Calculate Parameters and Save Profile",
-                           name="b-save-profile")
-        self.add_component(SpacerComponent)
-        self.add_component(ButtonComponent, "Back", name="b-back")
+        self.add_component(ButtonComponent(self, "Start", name="b-toggle-detection"))
+        self.add_component(
+            ButtonComponent(
+                self,
+                "Calculate Parameters and Save Profile",
+                name="b-save-profile",
+            )
+        )
+        self.add_component(SpacerComponent(self))
+        self.add_component(ButtonComponent(self, "Back", name="b-back"))
 
     def update(self):
         self.find_component(LabelComponent, "info").set_text(
@@ -138,13 +154,15 @@ class DistortionCorrectionScene(MyScene):
 
     CORNER_SUB_PIX_CRITERIA = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
 
-    def render_canvas(self) -> np.ndarray | None:
-        canvas = super().render_canvas()
+    def create_background(self, window_size: "ApplicationWindowSize") -> np.ndarray | None:
+        canvas = super().create_background(window_size)
         if canvas is None:
             return None
 
+        # チェッカーボードを検出して検出結果を描画する
         if self._is_detection_enabled and not self._points.is_cooling_down():
-            gray = cv2.cvtColor(canvas, cv2.COLOR_BGR2GRAY)
+            last_capture: CaptureResult | None = cast(MyApplication, get_app()).last_capture
+            gray = cv2.cvtColor(last_capture.frame, cv2.COLOR_BGR2GRAY)
             s1 = self.find_component(SpinBoxComponent, "num-intersections-1").get_value()
             s2 = self.find_component(SpinBoxComponent, "num-intersections-2").get_value()
             ret, corners = cv2.findChessboardCorners(gray, (s2, s1), None)
@@ -155,9 +173,12 @@ class DistortionCorrectionScene(MyScene):
                                             self.CORNER_SUB_PIX_CRITERIA)
                 self._points.add_snapshot(objp, corners2)
                 if not self._points.is_more_points_needed():
-                    self.get_app().make_toast(
-                        "info",
-                        "You got enough snapshots"
+                    get_app().make_toast(
+                        Toast(
+                            self,
+                            "info",
+                            "You got enough samples",
+                        )
                     )
                     self.toggle_detection_enabled()
                 canvas = cv2.drawChessboardCorners(canvas, (s2, s1), corners2, ret)
@@ -194,39 +215,52 @@ class DistortionCorrectionScene(MyScene):
                 return True
         return False
 
-    def on_button_triggered(self, sender: Component) -> None:
+    def _on_button_triggered(self, sender: Component) -> None:
         if isinstance(sender, ButtonComponent):
             if sender.get_name() == "b-toggle-detection":
                 self.toggle_detection_enabled()
                 return
             if sender.get_name() == "b-back":
-                self.get_app().move_back()
+                get_app().move_back()
                 return
             if sender.get_name() == "b-save-profile":
-                self.get_app().make_toast(
-                    "info",
-                    "Calculating distortion parameters... please wait.",
+                app = cast(MyApplication, get_app())
+                app.make_toast(
+                    Toast(
+                        self,
+                        "info",
+                        "Calculating distortion parameters... please wait."
+                    ),
                 )
-                if self.get_app().camera_info is None:
-                    self.get_app().make_toast(
-                        "error",
-                        "No camera information available",
+                if app.camera_info is None:
+                    app.make_toast(
+                        Toast(
+                            self,
+                            "error",
+                            "No camera information available",
+                        )
                     )
                     return
-                width = self.get_app().camera_info.actual_spec.width
-                height = self.get_app().camera_info.actual_spec.height
+                width = app.camera_info.actual_spec.width
+                height = app.camera_info.actual_spec.height
                 try:
                     params = self._points.calculate_parameters(width, height)
                 except ValueError as e:
-                    self.get_app().make_toast(
-                        "error",
-                        e.args[0],
+                    app.make_toast(
+                        Toast(
+                            self,
+                            "error",
+                            e.args[0],
+                        )
                     )
                 else:
-                    self.get_app().make_toast(
-                        "info",
-                        "Calculating distortion parameters... DONE",
+                    app.make_toast(
+                        Toast(
+                            self,
+                            "info",
+                            "Calculating distortion parameters... DONE",
+                        )
                     )
                     delegator = DistortionCorrectionSaveProfileDelegate(params)
-                    self.get_app().move_to(SaveProfileScene(self.get_app(), delegator))
+                    get_app().move_to(SaveProfileScene(delegator))
                 return

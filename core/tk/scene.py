@@ -1,57 +1,63 @@
+import contextlib
 from abc import ABC, abstractmethod
 from dataclasses import replace
+from typing import TYPE_CHECKING, Literal
 from typing import TypeVar
 
 import cv2
 import numpy as np
 
-from core.tk.component.component import Component
+from core.tk.app import ApplicationWindowSize
 from core.tk.event import KeyEvent, MouseEvent
 from core.tk.key import Key
-from core.tk.rendering import RenderingContext
-
-from typing import TYPE_CHECKING
+from core.tk.rendering import UIRenderingContext, Canvas
 
 if TYPE_CHECKING:
-    from core.tk.app import Application
+    from core.tk.component.component import Component
 
 
 class SceneEventHandlers(ABC):
-    def on_button_triggered(self, sender: Component) -> None:
+    def _on_button_triggered(self, sender: "Component") -> None:
         pass
 
-    def on_value_changed(self, sender: Component) -> None:
+    def _on_value_changed(self, sender: "Component") -> None:
         pass
 
 
-C = TypeVar("C", bound=Component)
+C = TypeVar("C", bound="Component")
 
 
 class Scene(SceneEventHandlers, ABC):
-    def __init__(self, app: "Application", is_stationed=False):
-        self._app = app
+    def __init__(self, *, is_stationed=False):
         self._components: list[Component] = []
         self._is_stationed = is_stationed  # disallow go-back
         self._global_focus_index = 0
 
         self._picture_in_picture: np.ndarray | None = None
 
-    def get_app(self) -> "Application":
-        return self._app
+        self._listener_enabled = True
 
     def is_stationed(self) -> bool:
         return self._is_stationed
 
-    def add_component(self, *args, **kwargs) -> None:
-        # add_component(Component(app, scene, ...))
-        #  or
-        # add_component(Component, ...)
-        if len(args) == 0 and isinstance(args[0], Component):
-            self._components.append(args[0])
-        else:
-            component_cls, *args = args
-            component = component_cls(self.get_app(), self, *args, **kwargs)
-            self._components.append(component)
+    @contextlib.contextmanager
+    def disable_listener(self):
+        prev_state = self._listener_enabled
+        self._listener_enabled = False
+        yield
+        self._listener_enabled = prev_state
+
+    def notify_listener(self, name: Literal["value-changed", "triggered"], sender: "Component"):
+        if self._listener_enabled:
+            if name == "value-changed":
+                self._on_value_changed(sender)
+            elif name == "triggered":
+                self._on_button_triggered(sender)
+            else:
+                raise ValueError(f"Unknown event name: {name}")
+
+    def add_component(self, component: "Component") -> None:
+        self._components.append(component)
 
     def find_component(self, component_type: type[C], name: str) -> C:
         for c in self._components:
@@ -66,7 +72,7 @@ class Scene(SceneEventHandlers, ABC):
         return sum(c.focus_count() for c in self._components)
 
     def map_global_focus_index(self, global_focus_index: int) \
-            -> tuple[Component | None, int]:  # component and local focus index
+            -> "tuple[Component | None, int]":  # component and local focus index
         for i, c in enumerate(self._components):
             if global_focus_index < c.focus_count():
                 local_focus_index = global_focus_index
@@ -75,10 +81,11 @@ class Scene(SceneEventHandlers, ABC):
         return None, 0
 
     @abstractmethod
-    def render_canvas(self) -> np.ndarray | None:
+    def create_background(self, window_size: ApplicationWindowSize) -> np.ndarray | None:
+        # シーンが背景を生成する
         raise NotImplementedError()
 
-    def get_focus_component(self) -> Component | None:
+    def get_focus_component(self) -> "Component | None":
         global_focus_index = self._global_focus_index
         return self.map_global_focus_index(global_focus_index)[0]
 
@@ -92,15 +99,15 @@ class Scene(SceneEventHandlers, ABC):
             im = cv2.resize(image, (sub_w_small, sub_h_small))
             self._picture_in_picture = im
 
-    def render_ui(self, rendering_ctx: RenderingContext) -> RenderingContext:
+    def render_ui(self, canvas: Canvas, rendering_ctx: UIRenderingContext) -> UIRenderingContext:
         if self._picture_in_picture is not None:
             # picture in picture at bottom left
-            h, w = rendering_ctx.canvas.shape[:2]
+            h, w = canvas.im.shape[:2]
             im = self._picture_in_picture
             sub_h_small, sub_w_small = im.shape[:2]
-            rendering_ctx.canvas[h - sub_h_small:, w - sub_w_small:] = im
+            canvas.im[h - sub_h_small:, w - sub_w_small:] = im
             cv2.rectangle(
-                rendering_ctx.canvas,
+                canvas.im,
                 (w - sub_w_small, h - sub_h_small),
                 (w, h),
                 (50, 50, 255),
@@ -109,7 +116,7 @@ class Scene(SceneEventHandlers, ABC):
             )
 
         for component in self._components:
-            rendering_result = component.render(rendering_ctx)
+            rendering_result = component.render(canvas, rendering_ctx)
             rendering_ctx = replace(
                 rendering_ctx,
                 top=rendering_ctx.top + rendering_result.height + 5,

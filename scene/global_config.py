@@ -3,9 +3,11 @@ import re
 import repo.global_config
 from core.tk.component.button import ButtonComponent
 from core.tk.component.component import Component
+from core.tk.component.global_state import get_app
 from core.tk.component.label import LabelComponent
 from core.tk.component.spacer import SpacerComponent
 from core.tk.component.spin_box import SpinBoxComponent
+from core.tk.component.toast import Toast
 from model.camera_spec import CameraSpec
 from model.global_config import GlobalConfig
 from scene.my_scene import MyScene
@@ -93,28 +95,30 @@ class CameraResolutionSelectItemDelegate(SelectItemDelegate):
 
 class GlobalConfigScene(MyScene):
     def load_event(self):
-        self.add_component(LabelComponent, "Global Configuration", bold=True)
-        self.add_component(LabelComponent, "[Camera]")
-        self.add_component(LabelComponent, "Camera ID")
+        self.add_component(LabelComponent(self, "Global Configuration", bold=True))
+        self.add_component(LabelComponent(self, "[Camera]"))
+        self.add_component(LabelComponent(self, "Camera ID"))
         self.add_component(
-            SpinBoxComponent,
-            min_value=0,
-            max_value=10,
-            value=0,
-            name="sb-camera-id",
+            SpinBoxComponent(
+                self,
+                min_value=0,
+                max_value=10,
+                name="sb-camera-id",
+            )
         )
-        self.add_component(LabelComponent, "Camera Resolution")
-        self.add_component(ButtonComponent, "", name="b-camera-resolution")
-        self.add_component(LabelComponent, "Camera FPS")
+        self.add_component(LabelComponent(self, "Camera Resolution"))
+        self.add_component(ButtonComponent(self, "", name="b-camera-resolution"))
+        self.add_component(LabelComponent(self, "Camera FPS"))
         self.add_component(
-            SpinBoxComponent,
-            min_value=1,
-            max_value=300,
-            value=1,
-            name="sb-camera-fps",
+            SpinBoxComponent(
+                self,
+                min_value=1,
+                max_value=300,
+                name="sb-camera-fps",
+            )
         )
-        self.add_component(SpacerComponent)
-        self.add_component(ButtonComponent, "Back", name="b-back")
+        self.add_component(SpacerComponent(self))
+        self.add_component(ButtonComponent(self, "Back", name="b-back"))
 
     def show_event(self):
         global_config: GlobalConfig = repo.global_config.get()
@@ -138,20 +142,22 @@ class GlobalConfigScene(MyScene):
             fps=self.find_component(SpinBoxComponent, "sb-camera-fps").get_value(),
         )
         repo.global_config.put(global_config)
-        self.get_app().make_toast(
-            "info",
-            "Configuration updated"
+        get_app().make_toast(
+            Toast(
+                self,
+                "info",
+                "Configuration updated"
+            )
         )
-        self.get_app().move_back()
+        get_app().move_back()
 
-    def on_button_triggered(self, sender: Component) -> None:
+    def _on_button_triggered(self, sender: Component) -> None:
         if sender.get_name() == "b-camera-resolution":
-            self.get_app().move_to(
+            get_app().move_to(
                 SelectItemScene(
-                    self.get_app(),
-                    CameraResolutionSelectItemDelegate(self.get_app()),
+                    CameraResolutionSelectItemDelegate(),
                 )
             )
             return
         if sender.get_name() == "b-back":
-            self.get_app().move_back()
+            get_app().move_back()

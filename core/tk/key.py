@@ -10,13 +10,13 @@ class Key(IntEnum):
     F = auto()
     G = auto()
     H = auto()
-    I = auto()
+    I = auto()  # noqa: E741
     J = auto()
     K = auto()
     L = auto()
     M = auto()
     N = auto()
-    O = auto()
+    O = auto()  # noqa: E741
     P = auto()
     Q = auto()
     R = auto()

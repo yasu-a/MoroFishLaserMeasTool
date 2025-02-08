@@ -255,6 +255,7 @@ class CameraServer:
         return lst
 
     def shutdown(self) -> None:
+        # noinspection DuplicatedCode
         self._logger.info("Shutting down")
         self.request_stop()
         self._logger.info("Waiting for process")

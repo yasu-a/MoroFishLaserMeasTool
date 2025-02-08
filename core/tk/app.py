@@ -1,31 +1,87 @@
 from abc import ABC, abstractmethod
 from collections import deque
-from typing import Literal
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import cv2
 import numpy as np
 
-from core.tk.component.toast import Toast
+from core.tk.component.global_state import register_app
+from core.tk.cv2_handler import CV2KeyHandler, CV2MouseHandler
 from core.tk.event import KeyEvent, MouseEvent
 from core.tk.key import Key
-from core.tk.cv2_handler import CV2KeyHandler, CV2MouseHandler
-from core.tk.rendering import RenderingContext
-from core.tk.scene import Scene
+from core.tk.rendering import UIRenderingContext, Canvas
+from core.tk.style import ApplicationUIStyle, _DEFAULT_STYLE
+
+if TYPE_CHECKING:
+    from core.tk.scene import Scene
+    from core.tk.component.toast import Toast
+
+
+@dataclass(frozen=True)
+class ApplicationWindowSize:
+    min_width: int
+    min_height: int
+    max_width: int
+    max_height: int
+
+    def coerce(self, im: np.ndarray) -> np.ndarray:
+        src_h, src_w = im.shape[:2]
+        h_pad, w_pad = 0, 0
+        if src_h < self.min_height:
+            h_pad = self.min_height - src_h
+        if src_w < self.min_width:
+            w_pad = self.min_width - src_w
+        if h_pad != 0 or w_pad != 0:
+            im = np.pad(
+                im,
+                ((0, h_pad), (0, w_pad), (0, 0)),
+            )
+
+        if src_h > self.max_height:
+            im = im[:self.max_height, :, :]
+        if src_w > self.max_width:
+            im = im[:, :self.max_width, :]
+
+        return im
+
+
+@dataclass(slots=True)
+class ApplicationParams:
+    rendering_fps: float
+    cv2_wait_key_delay: int
+    window_size: ApplicationWindowSize
+    style: ApplicationUIStyle
+
+
+_DEFAULT_PARAMS = ApplicationParams(
+    rendering_fps=30,
+    cv2_wait_key_delay=10,
+    window_size=ApplicationWindowSize(
+        min_width=1000,
+        min_height=700,
+        max_width=1920,
+        max_height=1080,
+    ),
+    style=_DEFAULT_STYLE,
+)
 
 
 class Application(ABC):
+    def __new__(cls, *args, **kwargs):
+        instance = super().__new__(cls)
+        register_app(instance)
+        return instance
+
     def __init__(
             self,
-            cv2_wait_key_delay=10,
-            ui_color: tuple[int, int, int] = (0, 220, 0),
     ):
-        self._cv2_wait_key_delay = cv2_wait_key_delay
-        self._ui_color = ui_color
+        self._params = _DEFAULT_PARAMS
 
-        self._key_handler = CV2KeyHandler()
+        self._key_handler = CV2KeyHandler(self._params.cv2_wait_key_delay)
         self._mouse_handler = CV2MouseHandler()
-        self._focus_index: dict[Scene, int] = {}
-        self._scene_stack: deque[Scene] = deque()
+        self._focus_index: "dict[Scene, int]" = {}
+        self._scene_stack: "deque[Scene]" = deque()
         self._signals: set[str] = set()
 
         self._toast: Toast | None = None
@@ -38,13 +94,7 @@ class Application(ABC):
         self._signals.discard(name)
         return flag
 
-    def set_ui_color(self, ui_color: tuple[int, int, int]) -> None:
-        self._ui_color = ui_color
-
-    def get_ui_color(self) -> tuple[int, int, int]:
-        return self._ui_color
-
-    def move_to(self, scene: Scene):
+    def move_to(self, scene: "Scene"):
         if self._scene_stack:
             self._scene_stack[-1].hide_event()
         scene.load_event()
@@ -63,23 +113,11 @@ class Application(ABC):
 
     def make_toast(
             self,
-            toast_type: Literal["info", "error"],
-            message: str,
+            toast: "Toast",
     ) -> None:
-        if toast_type == "info":
-            creator = Toast.create_info
-        elif toast_type == "error":
-            creator = Toast.create_error
-        else:
-            assert False, toast_type
+        self._toast = toast
 
-        self._toast = creator(
-            app=self,
-            scene=self.get_active_scene(),
-            message=message,
-        )
-
-    def get_active_scene(self) -> Scene | None:
+    def get_active_scene(self) -> "Scene | None":
         return self._scene_stack[-1] if self._scene_stack else None
 
     def key_event(self, event: KeyEvent) -> bool:
@@ -102,80 +140,50 @@ class Application(ABC):
             return True
         return False
 
-    @abstractmethod
-    def canvas_size_hint(self) -> tuple[int, int]:
-        raise NotImplementedError()
-
-    def create_rendering_context(
-            self,
-            canvas: np.ndarray,
-            min_width: int,
-            min_height: int,
-            max_width: int,
-            max_height: int,
-    ) -> RenderingContext:
-        canvas_height, canvas_width = canvas.shape[:2]
-
-        canvas_height_pad = max(0, min_height - canvas_height)
-        canvas_width_pad = max(0, min_width - canvas_width)
-        if canvas_height_pad > 0 or canvas_width_pad > 0:
-            canvas = np.pad(
-                canvas,
-                (
-                    (0, canvas_height_pad),
-                    (0, canvas_width_pad),
-                    (0, 0),
-                )
-            )
-
-        canvas_height, canvas_width = canvas.shape[:2]
-        max_width = min(max_width, canvas_width)
-        max_height = min(max_height, canvas_height)
-
-        rendering_ctx = RenderingContext(
-            canvas=canvas,
-            color=self._ui_color,
-            max_width=max_width,
+    def create_ui_rendering_context(self) -> UIRenderingContext:
+        rendering_ctx = UIRenderingContext(
+            style=self._params.style,
             font=cv2.FONT_HERSHEY_DUPLEX,
             scale=0.5,
             top=0,
             left=0,
         )
-        _ = max_height
 
         return rendering_ctx
 
-    def render(self) -> np.ndarray:
-        scene = self.get_active_scene()
-        if scene is not None:
-            im_out = scene.render_canvas()
-        else:
-            im_out = None
-
-        if im_out is None:
-            w, h = self.canvas_size_hint()
-            im_out = np.zeros((h, w, 3), dtype=np.uint8)
-
-        canvas = im_out[...]
-        rendering_ctx = self.create_rendering_context(
-            canvas,
-            min_width=1000,
-            min_height=700,
-            max_width=canvas.shape[1],
-            max_height=canvas.shape[0],
+    def create_background_fallback(self) -> np.ndarray:
+        # シーンがないとき，もしくはシーンが背景を生成できないときに背景を生成する
+        return np.zeros(
+            (self._params.window_size.min_height, self._params.window_size.min_height, 3),
+            np.uint8,
         )
 
+    def create_background(self) -> np.ndarray:
+        scene = self.get_active_scene()
+        im = None
         if scene is not None:
-            scene.render_ui(rendering_ctx)
+            im = scene.create_background(self._params.window_size)
+        if im is None:
+            im = self.create_background_fallback()
+        return im
+
+    def render(self) -> np.ndarray:
+        im: np.ndarray = self.create_background()
+
+        rendering_ctx = self.create_ui_rendering_context()
+
+        scene = self.get_active_scene()
+        if scene is not None:
+            scene.render_ui(Canvas(im), rendering_ctx)
 
         if self._toast is not None:
-            self._toast.render(rendering_ctx)
+            self._toast.render(Canvas(im), rendering_ctx)
 
-        return rendering_ctx.canvas
+        return im
 
     def do_event(self):
         # key events
-        for evt in self._key_handler.cv2_wait_key_and_iter_key_events(self._cv2_wait_key_delay):
+        for evt in self._key_handler.cv2_wait_key_and_iter_key_events():
             self.key_event(evt)
 
         # mouse events
