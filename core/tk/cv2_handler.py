@@ -5,13 +5,17 @@ from core.tk.key import Key, code_to_key, Modifier
 
 
 class CV2KeyHandler:
-    def __init__(self, delay: int):
-        self._delay = delay
+    def __init__(self, min_delay: int):
+        self._min_delay = min_delay
 
         self._active_key_frame_count: dict[Key, int] = {}
 
-    def cv2_wait_key_and_iter_key_events(self):
-        code = cv2.waitKeyEx(self._delay)
+    def cv2_wait_key_and_iter_key_events(self, delay: int = None):
+        if delay is None:
+            delay = self._min_delay
+        else:
+            delay = max(delay, self._min_delay)
+        code = cv2.waitKeyEx(delay)
         if code >= 0:
             key_result = code_to_key(code)
             if key_result is not None:

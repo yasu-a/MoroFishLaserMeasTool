@@ -111,6 +111,8 @@ class MyApplication(Application):
         self.reflect_camera_config()
 
         while True:
+            t_loop_start = time.monotonic()
+
             if self._is_camera_config_modified():
                 self.reflect_camera_config()
 
@@ -141,4 +143,7 @@ class MyApplication(Application):
             self.update()
             im_out = self.render()
             cv2.imshow("win", im_out)
-            self.do_event()
+
+            t_loop_end = time.monotonic()
+            delay = int(((1 / self._params.rendering_fps) - (t_loop_end - t_loop_start)) * 1000)
+            self.do_event(delay)

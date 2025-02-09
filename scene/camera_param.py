@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 from scipy.spatial import KDTree
 
+import repo.camera_param
 from app_logging import create_logger
 from core.tk.app import ApplicationWindowSize
 from core.tk.component.button import ButtonComponent
@@ -13,10 +14,13 @@ from core.tk.component.component import Component
 from core.tk.component.label import LabelComponent
 from core.tk.component.spacer import SpacerComponent
 from core.tk.component.spin_box import SpinBoxComponent
+from core.tk.component.toast import Toast
+from core.tk.dialog import InputNameDialog
 from core.tk.event import KeyEvent, MouseEvent
 from core.tk.global_state import get_app
 from core.tk.key import Key
 from dot_snap import DotSnapComputer
+from model.camera_param import CameraParamProfile
 from model.image import Image
 from scene.my_scene import MyScene
 from util.camera_calib_model import CameraCalibModel, DEFAULT_CALIB_MODEL
@@ -185,7 +189,7 @@ class CameraParamScene(MyScene):
             )
         )
         self.add_component(SpacerComponent(self))
-        self.add_component(LabelComponent(self, "World point:"))
+        self.add_component(LabelComponent(self, "World point: (A) <-> (D)"))
         self.add_component(
             SpinBoxComponent(
                 self,
@@ -194,6 +198,8 @@ class CameraParamScene(MyScene):
                 name="sb-active-point-index",
             )
         )
+        self.add_component(SpacerComponent(self))
+        self.add_component(ButtonComponent(self, "Save", name="b-save"))
         self.add_component(SpacerComponent(self))
         self.add_component(ButtonComponent(self, "Back", name="b-back"))
 
@@ -232,11 +238,10 @@ class CameraParamScene(MyScene):
             cv2.LINE_AA,
         )
 
-        # カメラパラメータ行列が張る空間の描画
+        # カメラパラメータ行列が張る空間の格子線の描画
         mat_camera = self._input_points.get_camera_param()
 
         def _proj(p):
-            nonlocal mat_camera
             _p3d = np.array([*p, 1])
             _p2d = mat_camera @ _p3d
             _p2d /= _p2d[2]
@@ -369,13 +374,51 @@ class CameraParamScene(MyScene):
 
         return False
 
-    def _on_value_changed(self, sender: Component) -> None:
-        # if sender.get_name() == "e-name":
-        #     name = self.find_component(LineEditComponent, "e-name").get_value()
-        #     self.set_overwrite_state(repo.image.exists(name))
-        #     return
-        super()._on_value_changed(sender)
-
     def _on_button_triggered(self, sender: Component) -> None:
+        if sender.get_name() == "b-save":
+            def validator(name: str) -> str | None:
+                if name == "":
+                    return "Please enter a file for this parameter"
+                return None
+
+            def already_exist_checker(name: str) -> bool:
+                return repo.camera_param.exists(name)
+
+            def callback(name: str | None) -> None:
+                get_app().close_dialog()
+
+                if name is None:
+                    get_app().make_toast(
+                        Toast(
+                            self,
+                            "error",
+                            "Canceled",
+                        )
+                    )
+                    return
+                else:
+                    profile = CameraParamProfile(
+                        name=name,
+                        mat=self._input_points.get_camera_param(),
+                    )
+                    repo.camera_param.put(profile)
+                    get_app().make_toast(
+                        Toast(
+                            self,
+                            "info",
+                            f"Saved camera parameter as {name}",
+                        )
+                    )
+
+            get_app().show_dialog(
+                InputNameDialog(
+                    title="Save Camera Parameter",
+                    validator=validator,
+                    already_exist_checker=already_exist_checker,
+                    callback=callback,
+                )
+            )
+            return
         if sender.get_name() == "b-back":
             get_app().move_back()
+            return

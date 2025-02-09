@@ -19,7 +19,7 @@ class Toast(Component):
         self._message_type = message_type
         self._message = message
         self._time_of_birth = time.monotonic()
-        expired_in_seconds = max(1.5, min(5.0, len(self._message) / 20))
+        expired_in_seconds = max(2.5, min(6.0, len(self._message) / 20))
         self._time_of_death = self._time_of_birth + expired_in_seconds
 
     def is_expired(self):

@@ -28,7 +28,7 @@ def get(name: str) -> DistortionProfile:
         assert isinstance(profile, DistortionProfile)
         return profile
     else:
-        raise FileNotFoundError(f"Profile '{name}' not found")
+        raise FileNotFoundError(f"Distortion profile '{name}' not found")
 
 
 def exists(name: str) -> bool:

@@ -61,10 +61,12 @@ class MainScene(MyScene):
 
         self.add_component(ButtonComponent(self, "Global Config", name="b-global-config"))
         self.add_component(ButtonComponent(self, "Select Profile", name="b-select-profile"))
+        self.add_component(SpacerComponent(self))
         self.add_component(ButtonComponent(self, "Distortion Corrections", name="b-distortion"))
         self.add_component(ButtonComponent(self, "Camera Parameters", name="b-camera-param"))
         self.add_component(ButtonComponent(self, "Laser Parameters", name="b-laser-param"))
         self.add_component(ButtonComponent(self, "Laser Extraction", name="b-laser-ext"))
+        self.add_component(SpacerComponent(self))
         self.add_component(ButtonComponent(self, "Screenshot", name="b-save-image"))
         self.add_component(SpacerComponent(self))
         self.add_component(

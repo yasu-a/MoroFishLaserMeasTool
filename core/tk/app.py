@@ -283,9 +283,9 @@ class Application(ABC):
 
         return im
 
-    def do_event(self):
+    def do_event(self, delay: int = None):
         # key events
-        for evt in self._key_handler.cv2_wait_key_and_iter_key_events():
+        for evt in self._key_handler.cv2_wait_key_and_iter_key_events(delay):
             self.key_event(evt)
 
         # mouse events
