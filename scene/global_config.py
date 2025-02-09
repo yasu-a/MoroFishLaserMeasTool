@@ -13,6 +13,7 @@ from model.camera_spec import CameraSpec
 from model.global_config import GlobalConfig
 from scene.my_scene import MyScene
 
+# noinspection SpellCheckingInspection
 _RESOLUTIONS = [
     ("144p", 256, 144),
     ("240p", 427, 240),

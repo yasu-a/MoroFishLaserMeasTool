@@ -135,6 +135,7 @@ class CharPrinter:
 
         return text[len_printed:]
 
+    # noinspection PyUnusedLocal
     def text_height(self, text: str, size: float) -> int:
         return int(size)
 
@@ -283,6 +284,7 @@ if __name__ == '__main__':
     import cv2
 
 
+    # noinspection PyUnusedLocal
     def main():
         average = None
 
@@ -330,6 +332,7 @@ if __name__ == '__main__':
             max_height = 700
             line_ofs = 0
 
+            # noinspection PyShadowingNames
             def mouse_callback(event, x, y, flags, param):
                 nonlocal line_ofs
                 if event == cv2.EVENT_MOUSEWHEEL:

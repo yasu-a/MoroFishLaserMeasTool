@@ -264,6 +264,7 @@ class InputNameDialog(Dialog):
             self,
             *,
             title: str,
+            value: str = "",
             validator: Callable[[str], str | None] = None,  # input -> None if valid else error msg
             already_exist_checker: Callable[[str], bool] = None,
             callback: Callable[[str | None], None],
@@ -273,6 +274,7 @@ class InputNameDialog(Dialog):
         self._context_name = "query"
 
         self._title = title
+        self._value = value
         self._validator = validator or (lambda name: None)
         self._already_exist_checker = already_exist_checker or (lambda name: False)
         self._callback = callback
@@ -280,7 +282,7 @@ class InputNameDialog(Dialog):
     def load_event(self):
         self.add_component(LabelComponent(self, self._title, bold=True))
         self.add_component(SpacerComponent(self))
-        self.add_component(LineEditComponent(self, name="e-name"))
+        self.add_component(LineEditComponent(self, self._value, name="e-name"))
         self.add_component(LabelComponent(self, "", name="l-info"))
         self.add_component(SpacerComponent(self))
         self.add_component(ButtonComponent(self, "OK", name="b-ok"))

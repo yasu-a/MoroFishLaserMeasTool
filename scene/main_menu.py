@@ -2,8 +2,8 @@ import time
 from datetime import datetime
 from typing import cast
 
+import repo.global_config
 import repo.image
-from active_profile_names import ActiveProfileNames
 from camera_server import CaptureResult, CameraInfo
 from core.tk.component.button import ButtonComponent
 from core.tk.component.component import Component
@@ -15,12 +15,14 @@ from core.tk.global_state import get_app
 from core.tk.key import Key
 from core.tk.rendering import UIRenderingContext
 from fps_counter import FPSCounterStat
+from model.active_profile_names import ActiveProfileNames
 from my_app import MyApplication
+from repo import open_in_explorer
 from scene.camera_param import CameraParamScene
 from scene.distortion_correction import DistortionCorrectionScene
 from scene.global_config import GlobalConfigScene
 from scene.my_scene import MyScene
-from scene.save_image import SaveImageScene
+from scene.screenshot import ScreenShotScene
 from scene.select_profile_menu import SelectProfileMenuScene
 
 
@@ -63,7 +65,11 @@ class MainScene(MyScene):
         self.add_component(ButtonComponent(self, "Camera Parameters", name="b-camera-param"))
         self.add_component(ButtonComponent(self, "Laser Parameters", name="b-laser-param"))
         self.add_component(ButtonComponent(self, "Laser Extraction", name="b-laser-ext"))
-        self.add_component(ButtonComponent(self, "Save Screenshot", name="b-save-image"))
+        self.add_component(ButtonComponent(self, "Screenshot", name="b-save-image"))
+        self.add_component(SpacerComponent(self))
+        self.add_component(
+            ButtonComponent(self, "Open Data Folder in Explorer", name="b-open-data-folder")
+        )
         self.add_component(SpacerComponent(self))
         self.add_component(ButtonComponent(self, "Exit", name="b-exit"))
 
@@ -94,11 +100,11 @@ class MainScene(MyScene):
             text.append(f"{datetime.fromtimestamp(time.time())!s}")
         self.find_component(LabelComponent, "l-timestamp").set_text("\n".join(text))
 
-        active_profile_names: ActiveProfileNames = app.active_profile_names
+        active_profile_names: ActiveProfileNames = repo.global_config.get().active_profile_names
         text = [
             f"Distortion: {active_profile_names.distortion_profile_name or '(NONE)'}",
-            f"Camera: {active_profile_names.camera_profile_name or '(NONE)'}",
-            f"Laser: {active_profile_names.laser_profile_name or '(NONE)'}",
+            f"Camera: {active_profile_names.camera_param_profile_name or '(NONE)'}",
+            f"Laser: {active_profile_names.laser_param_profile_name or '(NONE)'}",
         ]
         self.find_component(LabelComponent, "l-profile").set_text("\n".join(text))
 
@@ -162,7 +168,10 @@ class MainScene(MyScene):
                 # Implement laser extraction scene
                 pass
             if sender.get_name() == "b-save-image":
-                get_app().move_to(SaveImageScene())
+                get_app().move_to(ScreenShotScene())
+                pass
+            if sender.get_name() == "b-open-data-folder":
+                open_in_explorer()
                 pass
             if sender.get_name() == "b-exit":
                 def callback(button_name: str):

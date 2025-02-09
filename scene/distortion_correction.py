@@ -13,13 +13,13 @@ from core.tk.component.label import LabelComponent
 from core.tk.component.spacer import SpacerComponent
 from core.tk.component.spin_box import SpinBoxComponent
 from core.tk.component.toast import Toast
+from core.tk.dialog import InputNameDialog
 from core.tk.event import KeyEvent
 from core.tk.global_state import get_app
 from core.tk.key import Key
-from model.distortion import DistortionParameters, DistortionCorrectionProfile
+from model.distortion import DistortionParameters, DistortionProfile
 from my_app import MyApplication
 from scene.my_scene import MyScene
-from scene.save_profile import SaveProfileDelegate, SaveProfileScene
 
 
 class DistortionCorrectionPoints:
@@ -81,26 +81,11 @@ class DistortionCorrectionPoints:
         )
 
 
-class DistortionCorrectionSaveProfileDelegate(SaveProfileDelegate):
-    def __init__(self, params: DistortionParameters):
-        self._params = params
-
-    def check_exist(self, name: str) -> bool:
-        return repo.distortion.exists(name)
-
-    def execute(self, name: str) -> str | None:
-        profile = DistortionCorrectionProfile(
-            name=name,
-            params=self._params,
-        )
-        return repo.distortion.put(profile)
-
-
 class DistortionCorrectionScene(MyScene):
     def __init__(self):
         super().__init__()
 
-        self._points = DistortionCorrectionPoints(cooling_down_time_seconds=1, max_snapshots=20)
+        self._points = DistortionCorrectionPoints(cooling_down_time_seconds=1, max_snapshots=30)
         self._is_detection_enabled = False
 
     def load_event(self):
@@ -230,19 +215,12 @@ class DistortionCorrectionScene(MyScene):
                 return
             if sender.get_name() == "b-save-profile":
                 app = cast(MyApplication, get_app())
-                app.make_toast(
-                    Toast(
-                        self,
-                        "info",
-                        "Calculating distortion parameters... please wait."
-                    ),
-                )
                 if app.camera_info is None:
                     app.make_toast(
                         Toast(
                             self,
                             "error",
-                            "No camera information available",
+                            "Failed to get parameters: no camera information available",
                         )
                     )
                     return
@@ -263,9 +241,50 @@ class DistortionCorrectionScene(MyScene):
                         Toast(
                             self,
                             "info",
-                            "Calculating distortion parameters... DONE",
+                            "Calculating distortion parameters completed",
                         )
                     )
-                    delegator = DistortionCorrectionSaveProfileDelegate(params)
-                    get_app().move_to(SaveProfileScene(delegator))
+
+                    def validator(name: str) -> str | None:
+                        if name == "":
+                            return "Please enter a name for the profile"
+                        return None
+
+                    def already_exist_checker(name: str) -> bool:
+                        return repo.distortion.exists(name)
+
+                    def callback(name: str | None) -> None:
+                        get_app().close_dialog()
+
+                        if name is None:
+                            app.make_toast(
+                                Toast(
+                                    self,
+                                    "error",
+                                    f"Profile '{name}' already exists",
+                                )
+                            )
+                            return
+                        else:
+                            profile = DistortionProfile(
+                                name=name,
+                                params=params,
+                            )
+                            repo.distortion.put(profile)
+                            app.make_toast(
+                                Toast(
+                                    self,
+                                    "info",
+                                    f"Profile '{name}' saved successfully",
+                                )
+                            )
+
+                    get_app().show_dialog(
+                        InputNameDialog(
+                            title="Save Distortion Profile",
+                            validator=validator,
+                            already_exist_checker=already_exist_checker,
+                            callback=callback,
+                        )
+                    )
                 return

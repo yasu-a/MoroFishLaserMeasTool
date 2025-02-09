@@ -10,6 +10,7 @@ from scene.my_scene import MyScene
 
 
 class SelectItemDelegate(ABC):
+    # noinspection PyMethodMayBeStatic
     def item_count_per_page(self) -> int:
         return 10
 
@@ -22,6 +23,7 @@ class SelectItemDelegate(ABC):
             -> str | None:  # returns None if success, otherwise returns error message
         raise NotImplementedError()
 
+    # noinspection PyMethodMayBeStatic
     def after_selected(self) -> None:
         get_app().move_back()
 

@@ -32,6 +32,13 @@ def put(config: GlobalConfig) -> None:
     _mtime = datetime.fromtimestamp(_BASE_FILE_PATH.stat().st_mtime)
 
 
+def delete() -> None:
+    global _cache, _mtime
+    _cache = None
+    _mtime = None
+    _BASE_FILE_PATH.unlink()
+
+
 def get_mtime() -> datetime:
     if _mtime is None:
         get()

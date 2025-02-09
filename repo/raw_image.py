@@ -1,9 +1,9 @@
 import cv2
 
-from model.image import Image
+from model.raw_image import RawImage
 from repo.common import ROOT_DIR_PATH
 
-_BASE_DIR_PATH = ROOT_DIR_PATH / "image"
+_BASE_DIR_PATH = ROOT_DIR_PATH / "raw_image"
 
 
 def list_names() -> list[str]:
@@ -13,18 +13,16 @@ def list_names() -> list[str]:
     return [path.stem for path, _ in lst]
 
 
-def put(image: Image) -> None:
+def put(image: RawImage) -> None:
     path = _BASE_DIR_PATH / f"{image.name}.png"
     path.parent.mkdir(parents=True, exist_ok=True)
     cv2.imwrite(str(path), image.data)
 
 
-def get(name: str) -> Image:
+def get(name: str) -> RawImage:
     path = _BASE_DIR_PATH / f"{name}.png"
-    if not path.exists():
-        raise FileNotFoundError(f"Image not found: {name}")
     data = cv2.imread(str(path))
-    return Image(name, data)
+    return RawImage(name, data)
 
 
 def exists(name: str) -> bool:

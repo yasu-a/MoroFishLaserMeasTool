@@ -4,7 +4,6 @@ import time
 import cv2
 
 import repo.global_config
-from active_profile_names import ActiveProfileNames
 from app_logging import create_logger
 from camera_server import CameraServer, CaptureResult, CameraInfo, \
     UnavailableCameraInfo
@@ -57,7 +56,6 @@ class MyApplication(Application):
         self.fps_counter = FPSCounter()
         self.is_recording: bool = False
         self.last_recording_queue_count: int | None = None
-        self.active_profile_names = ActiveProfileNames()
 
     def key_event(self, event: KeyEvent) -> bool:
         if super().key_event(event):
