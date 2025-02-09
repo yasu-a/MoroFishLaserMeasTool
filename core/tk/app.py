@@ -3,12 +3,12 @@ from collections import deque
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-import cv2
 import numpy as np
 
-from core.tk.component.global_state import register_app
 from core.tk.cv2_handler import CV2KeyHandler, CV2MouseHandler
 from core.tk.event import KeyEvent, MouseEvent
+from core.tk.font_renderer import CharPrinter, ConsolaCharFactory
+from core.tk.global_state import register_app
 from core.tk.key import Key
 from core.tk.rendering import UIRenderingContext, Canvas
 from core.tk.style import ApplicationUIStyle, _DEFAULT_STYLE
@@ -52,6 +52,7 @@ class ApplicationParams:
     cv2_wait_key_delay: int
     window_size: ApplicationWindowSize
     style: ApplicationUIStyle
+    char_printer: CharPrinter
 
 
 _DEFAULT_PARAMS = ApplicationParams(
@@ -64,6 +65,7 @@ _DEFAULT_PARAMS = ApplicationParams(
         max_height=1080,
     ),
     style=_DEFAULT_STYLE,
+    char_printer=CharPrinter(ConsolaCharFactory()),
 )
 
 
@@ -143,10 +145,11 @@ class Application(ABC):
     def create_ui_rendering_context(self) -> UIRenderingContext:
         rendering_ctx = UIRenderingContext(
             style=self._params.style,
-            font=cv2.FONT_HERSHEY_DUPLEX,
-            scale=0.5,
+            char_printer=self._params.char_printer,
+            font_size=15,
             top=0,
             left=0,
+            max_width=400,
         )
 
         return rendering_ctx
@@ -170,14 +173,14 @@ class Application(ABC):
     def render(self) -> np.ndarray:
         im: np.ndarray = self.create_background()
 
-        rendering_ctx = self.create_ui_rendering_context()
-
         scene = self.get_active_scene()
         if scene is not None:
-            scene.render_ui(Canvas(im), rendering_ctx)
+            ctx = self.create_ui_rendering_context()
+            scene.render_ui(Canvas(im, ctx), ctx)
 
         if self._toast is not None:
-            self._toast.render(Canvas(im), rendering_ctx)
+            ctx = self.create_ui_rendering_context()
+            self._toast.render(Canvas(im, ctx), ctx)
 
         return im
 

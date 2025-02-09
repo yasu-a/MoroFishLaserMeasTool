@@ -4,7 +4,7 @@ import numpy as np
 
 from camera_server import CaptureResult
 from core.tk.app import ApplicationWindowSize
-from core.tk.component.global_state import get_app
+from core.tk.global_state import get_app
 from core.tk.scene import Scene
 from my_app import MyApplication
 

@@ -5,11 +5,11 @@ import numpy as np
 import repo.image
 from core.tk.component.button import ButtonComponent
 from core.tk.component.component import Component
-from core.tk.component.global_state import get_app
 from core.tk.component.label import LabelComponent
 from core.tk.component.line_edit import LineEditComponent
 from core.tk.component.spacer import SpacerComponent
 from core.tk.component.toast import Toast
+from core.tk.global_state import get_app
 from model import Image
 from my_app import MyApplication
 from scene.my_scene import MyScene

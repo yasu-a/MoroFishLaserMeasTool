@@ -1,5 +1,3 @@
-import cv2
-
 from core.tk.component.component import Component
 from core.tk.event import KeyEvent
 from core.tk.key import Key
@@ -19,31 +17,18 @@ class ButtonComponent(Component):
         self._text = text.replace("\n", " ")
 
     def render(self, canvas: Canvas, ctx: UIRenderingContext) -> RenderingResult:
-        x = ctx.left
-        y = ctx.top + ctx.font_offset_y
-        cv2.putText(
-            canvas.im,
-            self._text,
-            (x + 20, y),
-            ctx.font,
-            ctx.scale,
-            ctx.style.fg_color,
-            thickness=1,
-            lineType=cv2.LINE_AA,
+        text = " >>> " + self._text
+        bg_color = ctx.style.edge_color if self.get_scene().get_focus_component() is self else None
+        height = canvas.text(
+            text=text,
+            pos=(ctx.left, ctx.top),
+            max_width=ctx.max_width,
+            fg_color=ctx.style.fg_color,
+            edge_color=ctx.style.edge_color,
+            bg_color=bg_color,
         )
-        if self.get_scene().get_focus_component() is self:
-            cv2.putText(
-                canvas.im,
-                ">",
-                (x, y),
-                ctx.font,
-                ctx.scale,
-                ctx.style.fg_color,
-                thickness=1,
-                lineType=cv2.LINE_AA,
-            )
         return RenderingResult(
-            height=ctx.font_height,
+            height=height,
         )
 
     def key_event(self, event: KeyEvent) -> bool:

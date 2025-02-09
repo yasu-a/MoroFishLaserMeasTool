@@ -1,6 +1,5 @@
 import contextlib
 from abc import ABC, abstractmethod
-from dataclasses import replace
 from typing import TYPE_CHECKING, Literal
 from typing import TypeVar
 
@@ -99,30 +98,30 @@ class Scene(SceneEventHandlers, ABC):
             im = cv2.resize(image, (sub_w_small, sub_h_small))
             self._picture_in_picture = im
 
-    def render_ui(self, canvas: Canvas, rendering_ctx: UIRenderingContext) -> UIRenderingContext:
+    def render_ui(self, canvas: Canvas, ctx: UIRenderingContext) -> UIRenderingContext:
+        # picture in picture at bottom left
         if self._picture_in_picture is not None:
-            # picture in picture at bottom left
-            h, w = canvas.im.shape[:2]
+            margin = 20
+
+            h_canvas, w_canvas = canvas.height, canvas.width
             im = self._picture_in_picture
-            sub_h_small, sub_w_small = im.shape[:2]
-            canvas.im[h - sub_h_small:, w - sub_w_small:] = im
-            cv2.rectangle(
-                canvas.im,
-                (w - sub_w_small, h - sub_h_small),
-                (w, h),
-                (50, 50, 255),
-                3,
-                cv2.LINE_AA,
+            h_im, w_im = im.shape[:2]
+            canvas.paste(
+                im=im,
+                pos=(w_canvas - w_im - margin, h_canvas - h_im - margin)
+            )
+            canvas.rectangle(
+                pos=(w_canvas - w_im - margin, h_canvas - h_im - margin),
+                size=(w_im, h_im),
+                color=ctx.style.border_normal,
             )
 
+        # render components
         for component in self._components:
-            rendering_result = component.render(canvas, rendering_ctx)
-            rendering_ctx = replace(
-                rendering_ctx,
-                top=rendering_ctx.top + rendering_result.height + 5,
-            )
+            rendering_result = component.render(canvas, ctx)
+            ctx.top += rendering_result.height + 2
 
-        return rendering_ctx
+        return ctx
 
     def move_focus(self, delta: int) -> None:
         total_focus_count = self.get_total_focus_count()

@@ -6,10 +6,10 @@ from active_profile_names import ActiveProfileNames
 from camera_server import CaptureResult, CameraInfo
 from core.tk.component.button import ButtonComponent
 from core.tk.component.component import Component
-from core.tk.component.global_state import get_app
 from core.tk.component.label import LabelComponent
 from core.tk.component.spacer import SpacerComponent
 from core.tk.event import KeyEvent
+from core.tk.global_state import get_app
 from core.tk.key import Key
 from core.tk.rendering import UIRenderingContext, Canvas
 from fps_counter import FPSCounterStat
@@ -110,10 +110,10 @@ class MainScene(MyScene):
                 text.append(f"Captured frames on queue {last_recording_queue_count:3d}")
         self.find_component(LabelComponent, "l-record").set_text("\n".join(text))
 
-    def render_ui(self, canvas: Canvas, rendering_ctx: UIRenderingContext) -> UIRenderingContext:
+    def render_ui(self, canvas: Canvas, ctx: UIRenderingContext) -> UIRenderingContext:
         if not self._is_visible:
-            return rendering_ctx
-        return super().render_ui(canvas, rendering_ctx)
+            return ctx
+        return super().render_ui(canvas, ctx)
 
     def key_event(self, event: KeyEvent) -> bool:
         if super().key_event(event):

@@ -1,5 +1,3 @@
-import cv2
-
 from core.tk.component.component import Component
 from core.tk.event import KeyEvent
 from core.tk.key import Key
@@ -34,36 +32,23 @@ class LineEditComponent(Component):
             self.set_value(self._value[:-1])
 
     def render(self, canvas: Canvas, ctx: UIRenderingContext) -> RenderingResult:
-        cv2.rectangle(
-            canvas.im,
-            (ctx.left + 20, ctx.top),
-            (ctx.left + 300, ctx.top + ctx.font_height),
-            ctx.style.fg_color,
-            1,
+        text = self._value
+        bg_color = ctx.style.edge_color if self.get_scene().get_focus_component() is self else None
+        height = canvas.text(
+            text=text if text else ' ',
+            pos=(ctx.left, ctx.top),
+            max_width=ctx.max_width,
+            fg_color=ctx.style.fg_color,
+            edge_color=ctx.style.edge_color,
+            bg_color=bg_color,
         )
-        cv2.putText(
-            canvas.im,
-            self._value,
-            (ctx.left + 30, ctx.top + ctx.font_offset_y),
-            ctx.font,
-            ctx.scale,
-            ctx.style.fg_color,
-            thickness=1,
-            lineType=cv2.LINE_AA,
+        canvas.rectangle(
+            pos=(ctx.left, ctx.top),
+            size=(ctx.max_width, height),
+            color=ctx.style.fg_color,
         )
-        if self.get_scene().get_focus_component() is self:
-            cv2.putText(
-                canvas.im,
-                ">",
-                (ctx.left, ctx.top + ctx.font_offset_y),
-                ctx.font,
-                ctx.scale,
-                ctx.style.fg_color,
-                thickness=1,
-                lineType=cv2.LINE_AA,
-            )
         return RenderingResult(
-            height=ctx.font_height,
+            height=height,
         )
 
     def key_event(self, event: KeyEvent) -> bool:

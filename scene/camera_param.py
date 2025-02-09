@@ -11,11 +11,11 @@ from core.tk.app import ApplicationWindowSize
 from core.tk.component.button import ButtonComponent
 from core.tk.component.check_box import CheckBoxComponent
 from core.tk.component.component import Component
-from core.tk.component.global_state import get_app
 from core.tk.component.label import LabelComponent
 from core.tk.component.spacer import SpacerComponent
 from core.tk.component.spin_box import SpinBoxComponent
 from core.tk.event import KeyEvent, MouseEvent
+from core.tk.global_state import get_app
 from core.tk.key import Key
 from dot_snap import DotSnapComputer
 from model import Image

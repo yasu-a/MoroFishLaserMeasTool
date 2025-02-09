@@ -17,11 +17,13 @@ class ApplicationUIStyle:
     message_error_fg_color: Color
     query_fg_color: Color
     query_bg_color: Color
+    border_normal: Color
+    border_abnormal: Color
 
 
 _DEFAULT_STYLE = ApplicationUIStyle(
     fg_color=Color.BRIGHT_GREEN,
-    edge_color=Color.BLACK,
+    edge_color=Color.GREEN,
     toast_info_bg_color=Color.GREEN,
     toast_info_fg_color=Color.BRIGHT_WHITE,
     toast_error_bg_color=Color.RED,
@@ -32,6 +34,8 @@ _DEFAULT_STYLE = ApplicationUIStyle(
     message_error_fg_color=Color.WHITE,
     query_fg_color=Color.BRIGHT_WHITE,
     query_bg_color=Color.BLUE,
+    border_normal=Color.BRIGHT_BLUE,
+    border_abnormal=Color.BRIGHT_RED,
 )
 
 if __name__ == '__main__':

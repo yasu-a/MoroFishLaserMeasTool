@@ -1,7 +1,7 @@
 import time
 from typing import Literal
 
-import cv2
+import numpy as np
 
 from core.tk.component.component import Component
 from core.tk.rendering import UIRenderingContext, RenderingResult, Canvas
@@ -18,46 +18,57 @@ class Toast(Component):
         super().__init__(scene)
         self._message_type = message_type
         self._message = message
-        self._birthtime = time.monotonic()
-        self._expired_in_seconds = max(1.5, min(5.0, len(self._message) / 20))
+        self._time_of_birth = time.monotonic()
+        expired_in_seconds = max(1.5, min(5.0, len(self._message) / 20))
+        self._time_of_death = self._time_of_birth + expired_in_seconds
 
     def is_expired(self):
-        return self._birthtime + self._expired_in_seconds < time.monotonic()
+        return self._time_of_death < time.monotonic()
+
+    def _get_animation_factor(self) -> float:
+        now = time.monotonic()
+        a = min(1.0, (now - self._time_of_birth) / 0.2)
+        b = min(1.0, (self._time_of_death - now) / 0.1)
+        return min(a, b)
 
     FONT_SCALE = 1.5
 
     def render(self, canvas: Canvas, ctx: UIRenderingContext) -> RenderingResult:
-        cv2.rectangle(
-            canvas.im,
-            (0, int(canvas.im.shape[0] - ctx.font_height * self.FONT_SCALE)),
-            (canvas.im.shape[1], canvas.im.shape[0]),
-            (
-                ctx.style.toast_info_bg_color if self._message_type == "info"
-                else ctx.style.toast_error_bg_color
-            ),
-            -1,
+        if self._message_type == "info":
+            fg_color = ctx.style.toast_info_fg_color
+            bg_color = ctx.style.toast_info_bg_color
+        elif self._message_type == "error":
+            fg_color = ctx.style.toast_error_fg_color
+            bg_color = ctx.style.toast_error_bg_color
+        else:
+            assert False, self._message_type
+
+        margin = 5
+        x1, x2 = margin, canvas.width - margin
+
+        buf = np.zeros((100, x2 - x1, 3), np.uint8)
+        buf[:] = bg_color
+
+        buf_canvas = Canvas(buf, ctx)
+        padding = 5
+        height = buf_canvas.text(
+            text=self._message,
+            pos=(padding, padding),
+            max_width=buf.shape[1] - padding * 2,
+            max_height=buf.shape[0] - padding * 2,
+            fg_color=fg_color,
+            scale=2,
         )
-        cv2.putText(
-            canvas.im,
-            self._message,
-            (
-                ctx.left,
-                int(canvas.im.shape[0]
-                    - ctx.font_height * self.FONT_SCALE
-                    + ctx.font_offset_y * self.FONT_SCALE)
-            ),
-            ctx.font,
-            ctx.scale * self.FONT_SCALE,
-            (
-                ctx.style.toast_info_fg_color if self._message_type == "info"
-                else ctx.style.toast_error_fg_color
-            ),
-            1,
-            cv2.LINE_AA,
+        buf = buf[:height + padding * 2]
+
+        y_start = canvas.height
+        y_last = canvas.height - (height + padding * 2 + margin * 2)
+        y1 = y_start + int((y_last - y_start) * self._get_animation_factor())
+        canvas.paste(
+            im=buf,
+            pos=(x1, y1),
         )
-        return RenderingResult(
-            height=ctx.font_height,
-        )
+        return RenderingResult(height=0)
 
     def focus_count(self) -> int:
         return 0

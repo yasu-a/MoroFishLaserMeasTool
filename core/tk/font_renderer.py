@@ -185,7 +185,9 @@ class CharPrinter:
         def is_over_line_width(self) -> bool:
             return self._cur_w > self._max_width
 
-        def flush(self) -> bool:  # False if commited empty line
+        def flush(self, ignore_empty=False) -> bool:  # False if commited empty line
+            if not self._cur_chars and ignore_empty:
+                return bool(self._cur_chars)
             self._planned_lines.append("".join(self._cur_chars))
             self._cur_chars.clear()
             self._cur_w = 0
@@ -201,7 +203,10 @@ class CharPrinter:
             while self.has_char():
                 ch, _ = self.read_char()
                 if ch == "\n":
+                    self.unread_char(1)
                     self.flush()
+                    self.read_char()
+                    self.discard()
                 if self.is_over_line_width():
                     n_unread = self.find_backward(" ", max_unread=max_unread)
                     if n_unread is not None:
@@ -214,6 +219,7 @@ class CharPrinter:
                         self.unread_char(1)
                         if not self.flush():
                             return None
+            self.flush(ignore_empty=True)
             return self._planned_lines
 
     def put_text_multiline(
@@ -228,7 +234,7 @@ class CharPrinter:
             max_width: int = None,
             max_height: int = None,
             line_margin: int = 1,
-    ) -> str:  # returns rest of text
+    ) -> tuple[str, int]:  # returns rest of text and height
         # plan newlines
         lines = self.LineWrapPlanner(
             text,
@@ -237,11 +243,13 @@ class CharPrinter:
             self.text_width_array(text, size),
         ).plan_lines()
         if lines is None:
-            return text
+            self._logger.warning(f"Failed to plan line wrap\ntext={text}")
+            return text, 0
         text = "\n".join(lines)
 
         y_start = pos[1]
         x, y = pos
+        y_bottom = y_start
         prev_len = len(text)
         while text:
             if text[0] == "\n":
@@ -261,12 +269,13 @@ class CharPrinter:
                 thickness=thickness,
                 max_width=max_width,
             )
+            y_bottom = y + height
             text = cur_rest + text
             if len(text) == prev_len:
                 break
             prev_len = len(text)
             y += height + line_margin
-        return text
+        return text, y_bottom - y_start
 
 
 if __name__ == '__main__':
@@ -315,7 +324,7 @@ if __name__ == '__main__':
     Curabitur id eros quis tellus iaculis pretium non id felis. Donec sed venenatis lorem. Mauris et massa nec lorem sollicitudin feugiat. Duis sit amet commodo eros. Nulla ut arcu mauris. Suspendisse semper urna ut enim tincidunt, eget iaculis eros ultricies. Class aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Aliquam a rhoncus lorem, eget vehicula nisi. Aliquam laoreet elit eu pretium feugiat.
     Ut vulputate, nulla vitae auctor feugiat, metus orci suscipit sem, quis facilisis lorem diam non metus. Nam luctus nisi id pretium sagittis. Pellentesque sed ipsum facilisis, molestie velit vel, vulputate eros. Morbi aliquam nisl a rutrum pharetra. In consectetur ex in sollicitudin semper. Vivamus nec libero auctor sem consectetur pellentesque. Quisque nec tincidunt arcu, ac luctus lectus. Nulla convallis turpis purus. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Vestibulum condimentum diam non magna blandit bibendum. Nulla posuere consectetur sem, a ultrices sapien tempus et. Duis ut velit egestas, ullamcorper sem nec, auctor lorem.
     Pellentesque et ligula velit. Curabitur id mauris sed lectus ultrices porttitor. Donec ut sapien ac velit fermentum vestibulum. Etiam rutrum felis ligula, consectetur maximus justo molestie vitae. Sed condimentum dignissim mauris vel egestas. Donec dapibus velit enim, nec aliquam diam efficitur et. Proin mollis in velit ac facilisis. Nulla nec odio consequat, molestie magna in, cursus diam. Mauris imperdiet a nisl sed aliquet."""
-            text = """This function uses the same algorithm as the builtin python bisect.bisect_left (side='left') and bisect.bisect_right (side='right') functions, which is also vectorized in the v argument.\nThis function uses the same algorithm as the builtin python bisect.bisect_left (side='left') and bisect.bisect_right (side='right') functions, which is also vectorized in the v argument."""
+            text = """A\nBB\nCCC\nDDDDDDDDDDDD\n\nThis function uses the same algorithm as the builtin python bisect.bisect_left (side='left') and bisect.bisect_right (side='right') functions, which is also vectorized in the v argument.\nThis function uses the same algorithm as the builtin python bisect.bisect_left (side='left') and bisect.bisect_right (side='right') functions, which is also vectorized in the v argument."""
 
             max_width = 200
             max_height = 700
@@ -325,11 +334,11 @@ if __name__ == '__main__':
                 nonlocal line_ofs
                 if event == cv2.EVENT_MOUSEWHEEL:
                     if flags > 0:
-                        line_ofs -= 4
+                        line_ofs -= 1
                         if line_ofs < 0:
                             line_ofs = 0
                     elif flags < 0:
-                        line_ofs += 4
+                        line_ofs += 1
 
             cv2.namedWindow("win")
             cv2.setMouseCallback("win", mouse_callback)
@@ -351,7 +360,7 @@ if __name__ == '__main__':
                 #     max_width=max_width,
                 #     max_height=max_height,
                 # )
-                rest = cp.put_text_multiline(
+                rest, h = cp.put_text_multiline(
                     im,
                     (x, y),
                     text_now,
@@ -363,7 +372,7 @@ if __name__ == '__main__':
                 )
                 if i == 0:
                     print(repr(rest))
-                cv2.rectangle(im, (x, y), (x + max_width, y + max_height), (0, 255, 0), 1,
+                cv2.rectangle(im, (x, y), (x + max_width, y + h), (0, 255, 0), 1,
                               cv2.LINE_AA)
 
                 te = time.perf_counter()

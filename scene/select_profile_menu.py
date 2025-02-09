@@ -3,9 +3,9 @@ from typing import cast
 import repo.distortion
 from core.tk.component.button import ButtonComponent
 from core.tk.component.component import Component
-from core.tk.component.global_state import get_app
 from core.tk.component.label import LabelComponent
 from core.tk.component.spacer import SpacerComponent
+from core.tk.global_state import get_app
 from my_app import MyApplication
 from scene.my_scene import MyScene
 from scene.select_item import SelectItemDelegate, SelectItemScene
