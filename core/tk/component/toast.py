@@ -33,41 +33,36 @@ class Toast(Component):
 
     FONT_SCALE = 1.5
 
-    def render(self, canvas: Canvas, ctx: UIRenderingContext) -> RenderingResult:
-        if self._message_type == "info":
-            fg_color = ctx.style.toast_info_fg_color
-            bg_color = ctx.style.toast_info_bg_color
-        elif self._message_type == "error":
-            fg_color = ctx.style.toast_error_fg_color
-            bg_color = ctx.style.toast_error_bg_color
-        else:
-            assert False, self._message_type
+    def render(self, ctx: UIRenderingContext) -> RenderingResult:
+        with ctx.enter_sub_context(self._message_type):
+            canvas: Canvas = ctx.canvas
 
-        margin = 5
-        x1, x2 = margin, canvas.width - margin
+            margin = 5
+            x1, x2 = margin, canvas.width - margin
 
-        buf = np.zeros((100, x2 - x1, 3), np.uint8)
-        buf[:] = bg_color
+            buf = np.zeros((100, x2 - x1, 3), np.uint8)
+            buf[:] = ctx.bg_color
 
-        buf_canvas = Canvas(buf, ctx)
-        padding = 5
-        height = buf_canvas.text(
-            text=self._message,
-            pos=(padding, padding),
-            max_width=buf.shape[1] - padding * 2,
-            max_height=buf.shape[0] - padding * 2,
-            fg_color=fg_color,
-            scale=2,
-        )
-        buf = buf[:height + padding * 2]
+            buf_canvas = Canvas(buf, ctx)
+            padding = 5
+            height = buf_canvas.text(
+                text=self._message,
+                pos=(padding, padding),
+                max_width=buf.shape[1] - padding * 2,
+                max_height=buf.shape[0] - padding * 2,
+                fg_color=ctx.fg_color,
+                scale=2,
+            )
+            buf = buf[:height + padding * 2]
 
-        y_start = canvas.height
-        y_last = canvas.height - (height + padding * 2 + margin * 2)
-        y1 = y_start + int((y_last - y_start) * self._get_animation_factor())
-        canvas.paste(
-            im=buf,
-            pos=(x1, y1),
-        )
+            y_start = canvas.height
+            y_last = canvas.height - (height + padding * 2 + margin * 2)
+            y1 = y_start + int((y_last - y_start) * self._get_animation_factor())
+            canvas.paste(
+                im=buf,
+                pos=(x1, y1),
+            )
+
         return RenderingResult(height=0)
 
     def focus_count(self) -> int:

@@ -16,7 +16,7 @@ from core.tk.component.toast import Toast
 from core.tk.event import KeyEvent
 from core.tk.global_state import get_app
 from core.tk.key import Key
-from model import DistortionParameters, DistortionCorrectionProfile
+from model.distortion import DistortionParameters, DistortionCorrectionProfile
 from my_app import MyApplication
 from scene.my_scene import MyScene
 from scene.save_profile import SaveProfileDelegate, SaveProfileScene
@@ -135,11 +135,12 @@ class DistortionCorrectionScene(MyScene):
                 name="num-intersections-2",
             )
         )
-        self.add_component(ButtonComponent(self, "Start", name="b-toggle-detection"))
+        self.add_component(
+            ButtonComponent(self, "Start Detection <SPACE>", name="b-toggle-detection"))
         self.add_component(
             ButtonComponent(
                 self,
-                "Calculate Parameters and Save Profile",
+                "Save",
                 name="b-save-profile",
             )
         )
@@ -177,7 +178,7 @@ class DistortionCorrectionScene(MyScene):
                         Toast(
                             self,
                             "info",
-                            "You got enough samples",
+                            "You've got enough samples!",
                         )
                     )
                     self.toggle_detection_enabled()
@@ -202,9 +203,13 @@ class DistortionCorrectionScene(MyScene):
     def toggle_detection_enabled(self):
         self._is_detection_enabled = not self._is_detection_enabled
         if self._is_detection_enabled:
-            self.find_component(ButtonComponent, "b-toggle-detection").set_text("Stop detection")
+            self.find_component(ButtonComponent, "b-toggle-detection").set_text(
+                "Stop Detection <SPACE>"
+            )
         else:
-            self.find_component(ButtonComponent, "b-toggle-detection").set_text("Start detection")
+            self.find_component(ButtonComponent, "b-toggle-detection").set_text(
+                "Start Detection <SPACE>"
+            )
 
     def key_event(self, event: KeyEvent) -> bool:
         if super().key_event(event):

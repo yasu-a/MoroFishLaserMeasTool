@@ -1,6 +1,6 @@
 from core.tk.component.component import Component
 from core.tk.event import KeyEvent
-from core.tk.rendering import UIRenderingContext, RenderingResult, Canvas
+from core.tk.rendering import UIRenderingContext, RenderingResult
 from core.tk.scene import Scene
 
 
@@ -22,13 +22,13 @@ class LabelComponent(Component):
     def set_text(self, text: str) -> None:
         self._text = text
 
-    def render(self, canvas: Canvas, ctx: UIRenderingContext) -> RenderingResult:
-        height = canvas.text(
+    def render(self, ctx: UIRenderingContext) -> RenderingResult:
+        height = ctx.canvas.text(
             text=self._text,
             pos=(ctx.left, ctx.top),
             max_width=ctx.max_width,
-            fg_color=ctx.style.fg_color,
-            edge_color=ctx.style.edge_color,
+            fg_color=ctx.fg_color,
+            edge_color=ctx.edge_color,
             bold=self._bold,
         )
         return RenderingResult(

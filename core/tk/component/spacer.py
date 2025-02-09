@@ -1,10 +1,10 @@
 from core.tk.component.component import Component
 from core.tk.event import KeyEvent
-from core.tk.rendering import UIRenderingContext, RenderingResult, Canvas
+from core.tk.rendering import UIRenderingContext, RenderingResult
 
 
 class SpacerComponent(Component):
-    def render(self, canvas: Canvas, ctx: UIRenderingContext) -> RenderingResult:
+    def render(self, ctx: UIRenderingContext) -> RenderingResult:
         return RenderingResult(
             height=8,
         )

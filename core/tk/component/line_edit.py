@@ -1,7 +1,7 @@
 from core.tk.component.component import Component
 from core.tk.event import KeyEvent
 from core.tk.key import Key
-from core.tk.rendering import UIRenderingContext, RenderingResult, Canvas
+from core.tk.rendering import UIRenderingContext, RenderingResult
 from core.tk.scene import Scene
 
 
@@ -31,18 +31,18 @@ class LineEditComponent(Component):
         if self._value:
             self.set_value(self._value[:-1])
 
-    def render(self, canvas: Canvas, ctx: UIRenderingContext) -> RenderingResult:
+    def render(self, ctx: UIRenderingContext) -> RenderingResult:
         text = self._value
         bg_color = ctx.style.edge_color if self.get_scene().get_focus_component() is self else None
-        height = canvas.text(
+        height = ctx.canvas.text(
             text=text if text else ' ',
             pos=(ctx.left, ctx.top),
             max_width=ctx.max_width,
-            fg_color=ctx.style.fg_color,
-            edge_color=ctx.style.edge_color,
+            fg_color=ctx.fg_color,
+            edge_color=ctx.edge_color,
             bg_color=bg_color,
         )
-        canvas.rectangle(
+        ctx.canvas.rectangle(
             pos=(ctx.left, ctx.top),
             size=(ctx.max_width, height),
             color=ctx.style.fg_color,

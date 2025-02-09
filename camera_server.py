@@ -89,8 +89,8 @@ class VideoReader:
 
     def read(self) -> CaptureResult | None:
         self._check_open()
-        flag, frame = self._cap.read()
         timestamp = time.time()
+        flag, frame = self._cap.read()
         if flag:
             return CaptureResult(frame=frame, timestamp=timestamp)
         else:

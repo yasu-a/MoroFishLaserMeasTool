@@ -9,7 +9,7 @@ import numpy as np
 from core.tk.app import ApplicationWindowSize
 from core.tk.event import KeyEvent, MouseEvent
 from core.tk.key import Key
-from core.tk.rendering import UIRenderingContext, Canvas
+from core.tk.rendering import UIRenderingContext
 
 if TYPE_CHECKING:
     from core.tk.component.component import Component
@@ -40,7 +40,7 @@ class Scene(SceneEventHandlers, ABC):
         return self._is_stationed
 
     @contextlib.contextmanager
-    def disable_listener(self):
+    def disable_listener_context(self):
         prev_state = self._listener_enabled
         self._listener_enabled = False
         yield
@@ -98,11 +98,12 @@ class Scene(SceneEventHandlers, ABC):
             im = cv2.resize(image, (sub_w_small, sub_h_small))
             self._picture_in_picture = im
 
-    def render_ui(self, canvas: Canvas, ctx: UIRenderingContext) -> UIRenderingContext:
+    def render_ui(self, ctx: UIRenderingContext) -> UIRenderingContext:
         # picture in picture at bottom left
         if self._picture_in_picture is not None:
             margin = 20
 
+            canvas = ctx.canvas
             h_canvas, w_canvas = canvas.height, canvas.width
             im = self._picture_in_picture
             h_im, w_im = im.shape[:2]
@@ -118,15 +119,16 @@ class Scene(SceneEventHandlers, ABC):
 
         # render components
         for component in self._components:
-            rendering_result = component.render(canvas, ctx)
+            rendering_result = component.render(ctx)
             ctx.top += rendering_result.height + 2
 
         return ctx
 
     def move_focus(self, delta: int) -> None:
         total_focus_count = self.get_total_focus_count()
-        self._global_focus_index += delta
-        self._global_focus_index %= total_focus_count
+        if total_focus_count:
+            self._global_focus_index += delta
+            self._global_focus_index %= total_focus_count
 
     def key_event(self, event: KeyEvent) -> bool:
         handled = False
@@ -150,10 +152,10 @@ class Scene(SceneEventHandlers, ABC):
     def load_event(self):
         pass
 
-    def show_event(self):
+    def start_event(self):
         pass
 
-    def hide_event(self):
+    def stop_event(self):
         pass
 
     def unload_event(self):

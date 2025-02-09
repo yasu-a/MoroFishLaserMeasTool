@@ -1,4 +1,6 @@
+import contextlib
 from dataclasses import dataclass
+from typing import ContextManager
 
 import cv2
 import numpy as np
@@ -11,11 +13,55 @@ from core.tk.style import ApplicationUIStyle
 @dataclass(slots=True)
 class UIRenderingContext:
     style: ApplicationUIStyle
+    fg_colors: dict[str, Color]  # mapping from sub-context (info, error, ...) to color
+    bg_colors: dict[str, Color | None]
+    edge_colors: dict[str, Color | None]
     char_printer: CharPrinter
     font_size: float
     top: int
     left: int
     max_width: int
+    sub_context: str | None = None
+    canvas_image: np.ndarray | None = None
+
+    @contextlib.contextmanager
+    def enter_sub_context(self, sub_context: str) -> ContextManager["UIRenderingContext"]:
+        prev_sub_context = self.sub_context
+        self.sub_context = sub_context
+        yield self
+        self.sub_context = prev_sub_context
+
+    @property
+    def fg_color(self) -> Color:
+        try:
+            return self.fg_colors[self.sub_context]
+        except KeyError:
+            raise ValueError("Sub-context not determined")
+
+    @property
+    def bg_color(self) -> Color | None:
+        try:
+            return self.bg_colors[self.sub_context]
+        except KeyError:
+            return None
+
+    @property
+    def edge_color(self) -> Color | None:
+        try:
+            return self.edge_colors[self.sub_context]
+        except KeyError:
+            return None
+
+    @contextlib.contextmanager
+    def offer_canvas_image(self, im: np.ndarray) -> ContextManager["UIRenderingContext"]:
+        prev_canvas_image = self.canvas_image
+        self.canvas_image = im
+        yield self
+        self.canvas_image = prev_canvas_image
+
+    @property
+    def canvas(self) -> "Canvas":
+        return Canvas(self.canvas_image, self)  # TODO: cache me
 
 
 class Canvas:
@@ -120,6 +166,15 @@ class Canvas:
             (self._im.shape[1], self._im.shape[0]),
         )
         self._im[mask_warp == 255] = im_warp[mask_warp == 255]
+
+    def fullscreen_fill(self, color: Color):
+        cv2.rectangle(
+            self._im,
+            (0, 0),
+            (self._im.shape[1], self._im.shape[0]),
+            color,
+            -1,
+        )
 
     def fullscreen_rect(self, color: Color):
         cv2.rectangle(

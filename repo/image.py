@@ -1,6 +1,6 @@
 import cv2
 
-from model import Image
+from model.image import Image
 from repo.common import ROOT_DIR_PATH
 
 _BASE_DIR_PATH = ROOT_DIR_PATH / "image"

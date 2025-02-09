@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 from scipy.spatial import KDTree
 
-import repo.image
 from app_logging import create_logger
 from core.tk.app import ApplicationWindowSize
 from core.tk.component.button import ButtonComponent
@@ -18,29 +17,10 @@ from core.tk.event import KeyEvent, MouseEvent
 from core.tk.global_state import get_app
 from core.tk.key import Key
 from dot_snap import DotSnapComputer
-from model import Image
+from model.image import Image
 from scene.my_scene import MyScene
-from scene.select_item import SelectItemDelegate
 from util.camera_calib_model import CameraCalibModel, DEFAULT_CALIB_MODEL
 from util.solve_parameter import solve_equations_camera
-
-
-class CameraParaSelectImageDelegate(SelectItemDelegate):
-    def __init__(self):
-        self._selected_image: Image | None = None
-
-    def list_name(self) -> list[str]:
-        return repo.image.list_names()
-
-    def execute(self, name: str) -> str | None:
-        image = repo.image.get(name)
-        self._selected_image = image
-        return None
-
-    def after_selected(self) -> None:
-        assert self._selected_image is not None
-        scene = CameraParamScene(image=self._selected_image)
-        get_app().move_to(scene)
 
 
 class InputPoints:

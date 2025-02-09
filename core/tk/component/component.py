@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 
 from core.tk.event import KeyEvent
-from core.tk.rendering import UIRenderingContext, RenderingResult, Canvas
+from core.tk.rendering import UIRenderingContext, RenderingResult
 from core.tk.scene import Scene
 
 
@@ -17,7 +17,7 @@ class Component(ABC):
         return self.__name
 
     @abstractmethod
-    def render(self, canvas: Canvas, ctx: UIRenderingContext) -> RenderingResult:
+    def render(self, ctx: UIRenderingContext) -> RenderingResult:
         raise NotImplementedError()
 
     def key_event(self, event: KeyEvent) -> bool:

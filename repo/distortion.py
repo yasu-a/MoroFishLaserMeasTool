@@ -1,6 +1,6 @@
 import pickle
 
-from model import DistortionCorrectionProfile
+from model.distortion import DistortionCorrectionProfile
 from repo.common import ROOT_DIR_PATH
 
 _BASE_DIR_PATH = ROOT_DIR_PATH / "distortion"

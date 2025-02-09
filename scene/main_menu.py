@@ -2,24 +2,25 @@ import time
 from datetime import datetime
 from typing import cast
 
+import repo.image
 from active_profile_names import ActiveProfileNames
 from camera_server import CaptureResult, CameraInfo
 from core.tk.component.button import ButtonComponent
 from core.tk.component.component import Component
 from core.tk.component.label import LabelComponent
 from core.tk.component.spacer import SpacerComponent
+from core.tk.dialog import MessageDialog, SelectImageItemDialog
 from core.tk.event import KeyEvent
 from core.tk.global_state import get_app
 from core.tk.key import Key
-from core.tk.rendering import UIRenderingContext, Canvas
+from core.tk.rendering import UIRenderingContext
 from fps_counter import FPSCounterStat
 from my_app import MyApplication
-from scene.camera_param import CameraParaSelectImageDelegate
+from scene.camera_param import CameraParamScene
 from scene.distortion_correction import DistortionCorrectionScene
 from scene.global_config import GlobalConfigScene
 from scene.my_scene import MyScene
 from scene.save_image import SaveImageScene
-from scene.select_image_item import SelectImageItemScene
 from scene.select_profile_menu import SelectProfileMenuScene
 
 
@@ -110,10 +111,10 @@ class MainScene(MyScene):
                 text.append(f"Captured frames on queue {last_recording_queue_count:3d}")
         self.find_component(LabelComponent, "l-record").set_text("\n".join(text))
 
-    def render_ui(self, canvas: Canvas, ctx: UIRenderingContext) -> UIRenderingContext:
+    def render_ui(self, ctx: UIRenderingContext) -> UIRenderingContext:
         if not self._is_visible:
             return ctx
-        return super().render_ui(canvas, ctx)
+        return super().render_ui(ctx)
 
     def key_event(self, event: KeyEvent) -> bool:
         if super().key_event(event):
@@ -136,12 +137,24 @@ class MainScene(MyScene):
                 get_app().move_to(DistortionCorrectionScene())
                 return
             if sender.get_name() == "b-camera-param":
-                get_app().move_to(
-                    SelectImageItemScene(
-                        CameraParaSelectImageDelegate()
+                def callback(item: str | None) -> None:
+                    get_app().close_dialog()
+                    if item is not None:
+                        image = repo.image.get(item)
+                        get_app().move_to(
+                            CameraParamScene(
+                                image=image,
+                            )
+                        )
+
+                get_app().show_dialog(
+                    SelectImageItemDialog(
+                        title="Select Image for Camera Calibration",
+                        items=repo.image.list_names(),
+                        callback=callback,
                     )
                 )
-                pass
+                return
             if sender.get_name() == "b-laser-param":
                 # Implement laser parameter scene
                 pass
@@ -152,5 +165,16 @@ class MainScene(MyScene):
                 get_app().move_to(SaveImageScene())
                 pass
             if sender.get_name() == "b-exit":
-                get_app().send_signal("quit")
+                def callback(button_name: str):
+                    if button_name == "QUIT":
+                        get_app().send_signal("quit")
+                    get_app().close_dialog()
+
+                get_app().show_dialog(
+                    MessageDialog(
+                        message="Are you sure to quit?",
+                        buttons=("CANCEL", "QUIT"),
+                        callback=callback,
+                    )
+                )
                 return

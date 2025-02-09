@@ -17,6 +17,7 @@ class ApplicationUIStyle:
     message_error_fg_color: Color
     query_fg_color: Color
     query_bg_color: Color
+    dialog_active_button_color: Color
     border_normal: Color
     border_abnormal: Color
 
@@ -34,6 +35,7 @@ _DEFAULT_STYLE = ApplicationUIStyle(
     message_error_fg_color=Color.WHITE,
     query_fg_color=Color.BRIGHT_WHITE,
     query_bg_color=Color.BLUE,
+    dialog_active_button_color=Color.BRIGHT_BLACK,
     border_normal=Color.BRIGHT_BLUE,
     border_abnormal=Color.BRIGHT_RED,
 )

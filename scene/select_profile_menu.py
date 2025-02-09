@@ -5,19 +5,10 @@ from core.tk.component.button import ButtonComponent
 from core.tk.component.component import Component
 from core.tk.component.label import LabelComponent
 from core.tk.component.spacer import SpacerComponent
+from core.tk.dialog import SelectItemDialog
 from core.tk.global_state import get_app
 from my_app import MyApplication
 from scene.my_scene import MyScene
-from scene.select_item import SelectItemDelegate, SelectItemScene
-
-
-class DistortionSelectItemDelegate(SelectItemDelegate):
-    def list_name(self) -> list[str]:
-        return repo.distortion.list_names()
-
-    def execute(self, name: str) -> str | None:
-        cast(MyApplication, get_app()).active_profile_names.distortion_profile_name = name
-        return None
 
 
 class SelectProfileMenuScene(MyScene):
@@ -35,7 +26,7 @@ class SelectProfileMenuScene(MyScene):
         self.add_component(SpacerComponent(self))
         self.add_component(ButtonComponent(self, "Back", name="b-back"))
 
-    def show_event(self):
+    def start_event(self):
         active_profile_names = cast(MyApplication, get_app()).active_profile_names
 
         if active_profile_names.distortion_profile_name is None:
@@ -68,9 +59,16 @@ class SelectProfileMenuScene(MyScene):
     def _on_button_triggered(self, sender: Component) -> None:
         if isinstance(sender, ButtonComponent):
             if sender.get_name() == "b-distortion":
-                get_app().move_to(
-                    SelectItemScene(
-                        DistortionSelectItemDelegate(),
+                def callback(item: str | None):
+                    app = cast(MyApplication, get_app())
+                    app.active_profile_names.distortion_profile_name = item
+                    get_app().close_dialog()
+
+                get_app().show_dialog(
+                    SelectItemDialog(
+                        items=repo.distortion.list_names(),
+                        title="Select Distortion Profile",
+                        callback=callback,
                     )
                 )
                 return
