@@ -54,12 +54,13 @@ class VideoReader:
 
         # キャプチャ設定
         if self._cap is not None:
-            self._logger.info(f"Setting width={self.get_configured_spec().width}")
-            self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.get_configured_spec().width)
-            self._logger.info(f"Setting height={self.get_configured_spec().height}")
-            self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.get_configured_spec().height)
-            self._logger.info(f"Setting fps={self.get_configured_spec().fps}")
-            self._cap.set(cv2.CAP_PROP_FPS, self.get_configured_spec().fps)
+            if self.get_configured_spec() != self.get_actual_spec():
+                self._logger.info(f"Setting width={self.get_configured_spec().width}")
+                self._cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.get_configured_spec().width)
+                self._logger.info(f"Setting height={self.get_configured_spec().height}")
+                self._cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.get_configured_spec().height)
+                self._logger.info(f"Setting fps={self.get_configured_spec().fps}")
+                self._cap.set(cv2.CAP_PROP_FPS, self.get_configured_spec().fps)
             if not self._cap.isOpened():
                 self._logger.error(f"Failed to set camera {self._dev_id} configuration")
                 self._cap = None
