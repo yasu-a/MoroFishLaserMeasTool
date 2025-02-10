@@ -218,9 +218,9 @@ class Application(ABC):
             edge_colors=edge_colors,
             char_printer=self._params.char_printer,
             font_size=15,
-            top=0,
-            left=0,
-            max_width=400,
+            top=10,
+            left=10,
+            max_width=450,
         )
 
         return rendering_ctx

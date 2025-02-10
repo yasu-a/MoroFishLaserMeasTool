@@ -93,6 +93,10 @@ class Canvas:
     def height(self) -> int:
         return self._im.shape[0]
 
+    _THICKNESS_NORMAL = 1
+    _THICKNESS_BOLD = 4
+    _THICKNESS_EDGE_DELTA = 10
+
     def text(
             self,
             *,
@@ -122,11 +126,11 @@ class Canvas:
                 -1,
             )
 
-        base_thickness = 4 if bold else 1
+        base_thickness = self._THICKNESS_BOLD if bold else self._THICKNESS_NORMAL
 
         # edge
         if edge_color is not None:
-            edge_thickness = base_thickness + 10
+            edge_thickness = base_thickness + self._THICKNESS_EDGE_DELTA
             self._ctx.char_printer.put_text_multiline(
                 im=self._im,
                 pos=pos,
@@ -162,6 +166,31 @@ class Canvas:
             color,
             1,
             cv2.LINE_AA,
+        )
+
+    def line(
+            self,
+            start: tuple[int, int],
+            end: tuple[int, int],
+            color: Color,
+            edge_color: Color = None,
+    ):
+        if edge_color is not None:
+            cv2.line(
+                self._im,
+                start,
+                end,
+                color,
+                thickness=self._THICKNESS_NORMAL + 1,
+                lineType=cv2.LINE_AA,
+            )
+        cv2.line(
+            self._im,
+            start,
+            end,
+            edge_color,
+            thickness=self._THICKNESS_NORMAL,
+            lineType=cv2.LINE_AA,
         )
 
     def paste(self, im: np.ndarray, pos: tuple[int, int]):

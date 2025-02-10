@@ -87,7 +87,7 @@ class FPSCounterStat:
 
 
 class FPSCounter:
-    def __init__(self, max_record_seconds: float = 1):
+    def __init__(self, max_record_seconds: float = 2):
         self._max_record_seconds = max_record_seconds
         self._timestamps: deque[_Entry] = deque()
 

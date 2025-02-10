@@ -2,14 +2,20 @@ import time
 from datetime import datetime
 from typing import cast
 
+import repo.camera_param
+import repo.distortion
 import repo.global_config
 import repo.image
+import repo.laser_detection
+import repo.laser_param
 from camera_server import CaptureResult, CameraInfo
 from core.tk.component.button import ButtonComponent
 from core.tk.component.component import Component
 from core.tk.component.label import LabelComponent
+from core.tk.component.separator import SeparatorComponent
 from core.tk.component.spacer import SpacerComponent
-from core.tk.dialog import MessageDialog, SelectImageItemDialog
+from core.tk.component.toast import Toast
+from core.tk.dialog import MessageDialog, SelectImageItemDialog, SelectItemDialog
 from core.tk.event import KeyEvent
 from core.tk.global_state import get_app
 from core.tk.key import Key
@@ -23,7 +29,6 @@ from scene.distortion_correction import DistortionCorrectionScene
 from scene.global_config import GlobalConfigScene
 from scene.my_scene import MyScene
 from scene.screenshot import ScreenShotScene
-from scene.select_profile_menu import SelectProfileMenuScene
 
 
 class MainScene(MyScene):
@@ -33,39 +38,58 @@ class MainScene(MyScene):
         self._is_visible = True
 
     def load_event(self):
+        # title
         self.add_component(LabelComponent(self, "Main Menu", bold=True))
         self.add_component(LabelComponent(self, "TAB to show/hide this menu"))
 
-        self.add_component(SpacerComponent(self))
+        self.add_component(SeparatorComponent(self))
 
-        self.add_component(LabelComponent(self, "Camera spec"))
+        # camera spec
+        self.add_component(LabelComponent(self, "CAMERA SPEC"))
         self.add_component(LabelComponent(self, "", name="l-camera-spec"))
 
         self.add_component(SpacerComponent(self))
 
+        # fps
         self.add_component(LabelComponent(self, "FPS"))
         self.add_component(LabelComponent(self, "", name="l-fps"))
 
         self.add_component(SpacerComponent(self))
 
-        self.add_component(LabelComponent(self, "Frame Timestamp"))
+        # frame timestamp
+        self.add_component(LabelComponent(self, "FRAME TIMESTAMP"))
         self.add_component(LabelComponent(self, "", name="l-timestamp"))
 
-        self.add_component(SpacerComponent(self))
+        self.add_component(SeparatorComponent(self))
 
-        self.add_component(LabelComponent(self, "", name="l-profile"))
-
-        self.add_component(SpacerComponent(self))
-
+        # recording status
+        self.add_component(LabelComponent(self, "RECORDING STAT"))
         self.add_component(LabelComponent(self, "", name="l-record"))
 
+        self.add_component(SeparatorComponent(self))
+
+        # active profiles
+        self.add_component(LabelComponent(self, "ACTIVE PROFILES"))
+        self.add_component(LabelComponent(self, "", name="l-profile"))
+        self.add_component(ButtonComponent(self, "Edit", name="b-select-profile"))
+
+        self.add_component(SeparatorComponent(self))
+
+        # buttons
         self.add_component(ButtonComponent(self, "Global Config", name="b-global-config"))
-        self.add_component(ButtonComponent(self, "Select Profile", name="b-select-profile"))
         self.add_component(SpacerComponent(self))
-        self.add_component(ButtonComponent(self, "Distortion Corrections", name="b-distortion"))
-        self.add_component(ButtonComponent(self, "Camera Parameters", name="b-camera-param"))
-        self.add_component(ButtonComponent(self, "Laser Parameters", name="b-laser-param"))
-        self.add_component(ButtonComponent(self, "Laser Extraction", name="b-laser-ext"))
+        self.add_component(
+            ButtonComponent(self, "Create Distortion Profile", name="b-distortion")
+        )
+        self.add_component(
+            ButtonComponent(self, "Create Camera Parameter Profile", name="b-camera-param")
+        )
+        self.add_component(
+            ButtonComponent(self, "Create Laser Parameter Profile", name="b-laser-param")
+        )
+        self.add_component(
+            ButtonComponent(self, "Create Laser Extraction Profile", name="b-laser-ext")
+        )
         self.add_component(SpacerComponent(self))
         self.add_component(ButtonComponent(self, "Screenshot", name="b-save-image"))
         self.add_component(SpacerComponent(self))
@@ -82,11 +106,13 @@ class MainScene(MyScene):
         text = []
         if camera_info.is_available:
             if camera_info.actual_spec != camera_info.configured_spec:
-                text.append("[!!!] WARNING: CONFIGURED CAMERA SPEC NOT SYNCHRONIZED [!!!]")
-            text.append(f"Config: {camera_info.configured_spec}")
-            text.append(f"Actual: {camera_info.actual_spec}")
+                text.append("WARNING: CAMERA SPEC NOT SYNCHRONIZED")
+            c, a = camera_info.configured_spec, camera_info.actual_spec
+            text.append(f"        Width Height    FPS")
+            text.append(f"Config {c.width:>6} {c.height:>6} {c.fps:>6.2f}")
+            text.append(f"Actual {a.width:>6} {a.height:>6} {a.fps:>6.2f}")
         else:
-            text.append("NO CAMERA CONNECTED")
+            text.append("(NO CAMERA CONNECTED)")
         self.find_component(LabelComponent, "l-camera-spec").set_text("\n".join(text))
 
         fps_stat: FPSCounterStat = app.fps_counter.get_stat()
@@ -133,13 +159,144 @@ class MainScene(MyScene):
                 return True
         return False
 
+    def _show_select_profile_dialog(self, profile_type: str) -> None:
+        def callback(name: str | None) -> None:
+            get_app().close_dialog()
+
+            if name is None:
+                return
+
+            global_config = repo.global_config.get()
+            if profile_type == "Distortion":
+                global_config.active_profile_names.distortion_profile_name = name
+            elif profile_type == "Camera Parameter":
+                global_config.active_profile_names.camera_param_profile_name = name
+            elif profile_type == "Laser Parameter":
+                global_config.active_profile_names.laser_param_profile_name = name
+            elif profile_type == "Laser Detection":
+                global_config.active_profile_names.laser_detection_profile_name = name
+            else:
+                assert False, profile_type
+            repo.global_config.put(global_config)
+
+            get_app().make_toast(
+                Toast(
+                    self,
+                    "info",
+                    f"{profile_type} Profile Selected: {name}",
+                )
+            )
+
+        if profile_type == "Distortion":
+            items = repo.distortion.list_names()
+        elif profile_type == "Camera Parameter":
+            items = repo.camera_param.list_names()
+        elif profile_type == "Laser Parameter":
+            items = repo.laser_param.list_names()
+        elif profile_type == "Laser Detection":
+            items = repo.laser_detection.list_names()
+        else:
+            assert False, profile_type
+
+        if items:
+            get_app().show_dialog(
+                SelectItemDialog(
+                    title=f"Select {profile_type} Profile",
+                    items=items,
+                    callback=callback,
+                )
+            )
+        else:
+            get_app().show_dialog(
+                MessageDialog(
+                    is_error=True,
+                    message=f"No {profile_type} found",
+                    callback=lambda _: get_app().close_dialog(),
+                )
+            )
+
+    def _show_profile_select_or_deselect_dialog(self, profile_type: str) -> None:
+        def callback(item: str | None) -> None:
+            get_app().close_dialog()
+
+            if item is None:
+                return
+
+            if item.startswith("Deselect: "):
+                global_config = repo.global_config.get()
+                if profile_type == "Distortion":
+                    global_config.active_profile_names.distortion_profile_name = None
+                elif profile_type == "Camera Parameter":
+                    global_config.active_profile_names.camera_param_profile_name = None
+                elif profile_type == "Laser Parameter":
+                    global_config.active_profile_names.laser_param_profile_name = None
+                elif profile_type == "Laser Detection":
+                    global_config.active_profile_names.laser_detection_profile_name = None
+                else:
+                    assert False, profile_type
+
+                repo.global_config.put(global_config)
+
+                get_app().make_toast(
+                    Toast(
+                        self,
+                        "info",
+                        f"{profile_type} Profile Deselected",
+                    )
+                )
+            else:
+                self._show_select_profile_dialog(profile_type)
+
+        global_config = repo.global_config.get()
+        if profile_type == "Distortion":
+            current = global_config.active_profile_names.distortion_profile_name
+        elif profile_type == "Camera Parameter":
+            current = global_config.active_profile_names.camera_param_profile_name
+        elif profile_type == "Laser Parameter":
+            current = global_config.active_profile_names.laser_param_profile_name
+        elif profile_type == "Laser Detection":
+            current = global_config.active_profile_names.laser_detection_profile_name
+        else:
+            assert False, profile_type
+
+        if current is None:
+            self._show_select_profile_dialog(profile_type)
+        else:
+            get_app().show_dialog(
+                MessageDialog(
+                    message=f"What do you want to do for {profile_type}",
+                    buttons=(
+                        "Select another",
+                        f"Deselect: '{current}'",
+                    ),
+                    callback=callback,
+                )
+            )
+
+    def _show_select_profile_to_edit_dialog(self) -> None:
+        def callback(item: str | None) -> None:
+            get_app().close_dialog()
+
+            if item is None:
+                return
+
+            self._show_profile_select_or_deselect_dialog(item)
+
+        get_app().show_dialog(
+            SelectItemDialog(
+                title="What profile do you edit?",
+                items=["Distortion", "Camera Parameter", "Laser Parameter", "Laser Detection"],
+                callback=callback,
+            )
+        )
+
     def _on_button_triggered(self, sender: Component) -> None:
         if isinstance(sender, ButtonComponent):
             if sender.get_name() == "b-global-config":
                 get_app().move_to(GlobalConfigScene())
                 pass
             if sender.get_name() == "b-select-profile":
-                get_app().move_to(SelectProfileMenuScene())
+                self._show_select_profile_to_edit_dialog()
                 return
             if sender.get_name() == "b-distortion":
                 get_app().move_to(DistortionCorrectionScene())
@@ -184,7 +341,8 @@ class MainScene(MyScene):
 
                 get_app().show_dialog(
                     MessageDialog(
-                        message="Are you sure to quit?",
+                        is_error=True,
+                        message="Are you sure to quit application?",
                         buttons=("CANCEL", "QUIT"),
                         callback=callback,
                     )

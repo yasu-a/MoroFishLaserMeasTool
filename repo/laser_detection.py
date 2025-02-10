@@ -1,9 +1,9 @@
 import json
 
-from model.camera_param import CameraParamProfile
+from model.laser_detection import LaserDetectionProfile
 from repo.common import ROOT_DIR_PATH
 
-_BASE_DIR_PATH = ROOT_DIR_PATH / "camera_param"
+_BASE_DIR_PATH = ROOT_DIR_PATH / "laser_detection"
 
 
 def list_names() -> list[str]:
@@ -13,22 +13,22 @@ def list_names() -> list[str]:
     return [path.stem for path, _ in lst]
 
 
-def put(profile: CameraParamProfile) -> None:
+def put(profile: LaserDetectionProfile) -> None:
     path = _BASE_DIR_PATH / f"{profile.name}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w") as f:
         json.dump(profile.to_json(), f)
 
 
-def get(name: str) -> CameraParamProfile:
+def get(name: str) -> LaserDetectionProfile:
     path = _BASE_DIR_PATH / f"{name}.json"
     if path.exists():
         with path.open("r") as f:
-            profile = CameraParamProfile.from_json(json.load(f))
-        assert isinstance(profile, CameraParamProfile)
+            profile = LaserDetectionProfile.from_json(json.load(f))
+        assert isinstance(profile, LaserDetectionProfile)
         return profile
     else:
-        raise FileNotFoundError(f"Camera parameter profile '{name}' not found")
+        raise FileNotFoundError(f"Laser detection profile '{name}' not found")
 
 
 def exists(name: str) -> bool:
