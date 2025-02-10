@@ -95,7 +95,7 @@ class Canvas:
 
     _THICKNESS_NORMAL = 1
     _THICKNESS_BOLD = 4
-    _THICKNESS_EDGE_DELTA = 10
+    _THICKNESS_EDGE_DELTA = 9
 
     def text(
             self,
@@ -180,7 +180,7 @@ class Canvas:
                 self._im,
                 start,
                 end,
-                color,
+                edge_color,
                 thickness=self._THICKNESS_NORMAL + 1,
                 lineType=cv2.LINE_AA,
             )
@@ -188,7 +188,7 @@ class Canvas:
             self._im,
             start,
             end,
-            edge_color,
+            color,
             thickness=self._THICKNESS_NORMAL,
             lineType=cv2.LINE_AA,
         )

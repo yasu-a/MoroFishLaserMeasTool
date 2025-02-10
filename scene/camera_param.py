@@ -1,4 +1,4 @@
-from typing import Iterable
+from typing import Iterable, Callable
 
 import cv2
 import numpy as np
@@ -12,10 +12,11 @@ from core.tk.component.button import ButtonComponent
 from core.tk.component.check_box import CheckBoxComponent
 from core.tk.component.component import Component
 from core.tk.component.label import LabelComponent
+from core.tk.component.separator import SeparatorComponent
 from core.tk.component.spacer import SpacerComponent
 from core.tk.component.spin_box import SpinBoxComponent
 from core.tk.component.toast import Toast
-from core.tk.dialog import InputNameDialog
+from core.tk.dialog import InputNameDialog, MessageDialog
 from core.tk.event import KeyEvent, MouseEvent
 from core.tk.global_state import get_app
 from core.tk.key import Key
@@ -30,8 +31,9 @@ from util.solve_parameter import solve_equations_camera
 class InputPoints:
     _logger = create_logger()
 
-    def __init__(self, calib_model: CameraCalibModel):
+    def __init__(self, calib_model: CameraCalibModel, callback: Callable[[], None] = None):
         self._calib_model = calib_model
+        self._callback = callback
 
         self._points_2d: list[tuple[int, int] | None] \
             = [None] * calib_model.get_world_point_count()
@@ -42,16 +44,21 @@ class InputPoints:
         self._camera_param = None
         self._camera_param_modification_count = None
 
-    def get_camera_param(self):
+    def get_camera_mat(self) -> np.ndarray | None:
         if self._camera_param is None \
                 or self._camera_param_modification_count != self._modification_count:
+            if self.get_input_point_count() <= 1:
+                return None
             points = []
             for i in self.iter_indexes():
                 if not self.is_marked(i):
                     continue
                 points.append([*self._calib_model.get_world_point(i), *self.point_at(i)])
             points = np.array(points)
-            self._camera_param = solve_equations_camera(points)
+            try:
+                self._camera_param = solve_equations_camera(points)
+            except np.linalg.LinAlgError:
+                return None
             self._camera_param_modification_count = self._modification_count
             self._logger.debug(
                 f"Camera parameter recalculated\n"
@@ -79,15 +86,21 @@ class InputPoints:
             return
         self._points_2d_kdtree = KDTree(available_points_2d)
 
+    def _dispatch_callback(self):
+        if self._callback is not None:
+            self._callback()
+
     def add_point(self, index: int, p2d: tuple[int, int]) -> None:
         self._points_2d[index] = p2d
         self._update_kdtree()
         self._modification_count += 1
+        self._dispatch_callback()
 
     def remove_point(self, index: int) -> None:
         self._points_2d[index] = None
         self._update_kdtree()
         self._modification_count += 1
+        self._dispatch_callback()
 
     def query_nearest_index(self, x: int, y: int, r: float) \
             -> tuple[int | None, float | None]:  # index and distance
@@ -117,6 +130,9 @@ class InputPoints:
 
     def iter_indexes(self) -> Iterable[int]:
         yield from range(len(self._points_2d))
+
+    def get_input_point_count(self) -> int:
+        return sum(1 for i in self.iter_indexes() if self.is_marked(i))
 
 
 class SnapManager:
@@ -162,7 +178,7 @@ class CameraParamScene(MyScene):
 
         self._input_points = InputPoints(
             calib_model=self._calib_model,
-
+            callback=self._on_input_points_updated,
         )
         self._snap_manager = SnapManager(
             input_points=self._input_points,
@@ -171,7 +187,7 @@ class CameraParamScene(MyScene):
 
     def load_event(self):
         self.add_component(LabelComponent(self, "Camera Parameter", bold=True))
-        self.add_component(SpacerComponent(self))
+        self.add_component(SeparatorComponent(self))
         self.add_component(
             CheckBoxComponent(
                 self,
@@ -198,7 +214,8 @@ class CameraParamScene(MyScene):
                 name="sb-active-point-index",
             )
         )
-        self.add_component(SpacerComponent(self))
+        self.add_component(SeparatorComponent(self))
+        self.add_component(LabelComponent(self, "", name="l-param"))
         self.add_component(ButtonComponent(self, "Save", name="b-save"))
         self.add_component(SpacerComponent(self))
         self.add_component(ButtonComponent(self, "Back", name="b-back"))
@@ -238,64 +255,64 @@ class CameraParamScene(MyScene):
             cv2.LINE_AA,
         )
 
-        # カメラパラメータ行列が張る空間の格子線の描画
-        mat_camera = self._input_points.get_camera_param()
+        mat: np.ndarray | None = self._input_points.get_camera_mat()
+        if mat is not None:
+            def _proj(p):
+                _p3d = np.array([*p, 1])
+                _p2d = mat @ _p3d
+                _p2d /= _p2d[2]
+                return _p2d[:2].round(0).astype(int)
 
-        def _proj(p):
-            _p3d = np.array([*p, 1])
-            _p2d = mat_camera @ _p3d
-            _p2d /= _p2d[2]
-            return _p2d[:2].round(0).astype(int)
+            # カメラパラメータ行列が張る空間の格子線の描画
+            size = self._calib_model.get_size()
+            for v in np.arange(0, size + 1e-6, 20):
+                p1, p2 = np.array([v, 0, 0]), np.array([v, size, 0])
+                for i in range(3):
+                    cv2.line(canvas, _proj(p1), _proj(p2), (200, 50, 0), 1, cv2.LINE_AA)
+                    p1, p2 = np.roll(p1, 1), np.roll(p2, 1)
+                p1, p2 = np.array([0, v, 0]), np.array([size, v, 0])
+                for i in range(3):
+                    cv2.line(canvas, _proj(p1), _proj(p2), (200, 50, 0), 1, cv2.LINE_AA)
+                    p1, p2 = np.roll(p1, 1), np.roll(p2, 1)
 
-        size = self._calib_model.get_size()
-        for v in np.arange(0, size + 1e-6, 20):
-            p1, p2 = np.array([v, 0, 0]), np.array([v, size, 0])
-            for i in range(3):
-                cv2.line(canvas, _proj(p1), _proj(p2), (200, 50, 0), 1, cv2.LINE_AA)
-                p1, p2 = np.roll(p1, 1), np.roll(p2, 1)
-            p1, p2 = np.array([0, v, 0]), np.array([size, v, 0])
-            for i in range(3):
-                cv2.line(canvas, _proj(p1), _proj(p2), (200, 50, 0), 1, cv2.LINE_AA)
-                p1, p2 = np.roll(p1, 1), np.roll(p2, 1)
+            # 点予測
+            p2d = _proj(self._calib_model.get_world_point(self.get_active_point_index()))
+            cv2.circle(
+                canvas,
+                p2d,
+                20,
+                (50, 50, 50),
+                1,
+                cv2.LINE_AA,
+            )
+            cv2.putText(
+                canvas,
+                "PREDICTION",
+                p2d + [20, 20],
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.35,
+                (50, 50, 50),
+                1,
+                cv2.LINE_AA,
+            )
 
-        # 点予測
-        p2d = _proj(self._calib_model.get_world_point(self.get_active_point_index()))
-        cv2.circle(
-            canvas,
-            p2d,
-            20,
-            (50, 50, 50),
-            1,
-            cv2.LINE_AA,
-        )
-        cv2.putText(
-            canvas,
-            "PREDICTION",
-            p2d + [20, 20],
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.35,
-            (50, 50, 50),
-            1,
-            cv2.LINE_AA,
-        )
-
-        # カーソル
-        cv2.circle(
-            canvas,
-            self._cursor_pos,
-            8,
-            (255, 255, 255),
-            2,
-            cv2.LINE_AA,
-        )
-        cv2.circle(
-            canvas,
-            self._cursor_pos,
-            8,
-            (0, 0, 200),
-            1,
-            cv2.LINE_AA,
-        )
+            # カーソル
+            cv2.circle(
+                canvas,
+                self._cursor_pos,
+                8,
+                (255, 255, 255),
+                2,
+                cv2.LINE_AA,
+            )
+            cv2.circle(
+                canvas,
+                self._cursor_pos,
+                8,
+                (0, 0, 200),
+                1,
+                cv2.LINE_AA,
+            )
 
         # 点
         for i in (self._input_points.iter_indexes()):
@@ -375,8 +392,31 @@ class CameraParamScene(MyScene):
 
         return False
 
+    def _on_input_points_updated(self) -> None:
+        mat: np.ndarray | None = self._input_points.get_camera_mat()
+        if mat is None:
+            mat = np.full((3, 4), np.nan)
+        self.find_component(LabelComponent, "l-param").set_text(
+            "\n".join(
+                " ".join(f"{col:+9.5f}" for col in row)
+                for row in mat
+            )
+        )
+
     def _on_button_triggered(self, sender: Component) -> None:
         if sender.get_name() == "b-save":
+            mat: np.ndarray | None = self._input_points.get_camera_mat()
+            if mat is None:
+                get_app().make_toast(
+                    Toast(
+                        self,
+                        "error",
+                        "Failed to solve camera parameter",
+                    )
+
+                )
+                return
+
             def validator(name: str) -> str | None:
                 if name == "":
                     return "Please enter a file for this parameter"
@@ -400,7 +440,7 @@ class CameraParamScene(MyScene):
                 else:
                     profile = CameraParamProfile(
                         name=name,
-                        mat=self._input_points.get_camera_param(),
+                        mat=mat,
                     )
                     repo.camera_param.put(profile)
                     get_app().make_toast(
@@ -421,5 +461,21 @@ class CameraParamScene(MyScene):
             )
             return
         if sender.get_name() == "b-back":
-            get_app().move_back()
-            return
+            def callback(button_name: str | None) -> None:
+                get_app().close_dialog()
+                if button_name == "Yes":
+                    get_app().move_back()
+
+            n = self._input_points.get_input_point_count()
+            if n > 0:
+                get_app().show_dialog(
+                    MessageDialog(
+                        is_error=True,
+                        message=f"{n} points are marked. Are you sure to exit?",
+                        buttons=("No", "Yes"),
+                        callback=callback,
+                    )
+                )
+                return
+            else:
+                get_app().move_back()

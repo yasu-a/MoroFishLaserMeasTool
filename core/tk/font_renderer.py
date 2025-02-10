@@ -32,6 +32,10 @@ class AbstractCharFactory(ABC):
     def get_global_baseline(self, size: float) -> int:
         raise NotImplementedError()
 
+    @abstractmethod
+    def char_gap_correction(self, size: float) -> int:
+        raise NotImplementedError()
+
 
 class ConsolaCharFactory(AbstractCharFactory):
     _FONT_NAME = "consola.ttf"
@@ -60,16 +64,16 @@ class ConsolaCharFactory(AbstractCharFactory):
             self._mask_cache[ch] = self._create_char_mask(ch)
 
         mask = self._mask_cache[ch]
+        mask = np.pad(mask, ((5, 5), (5, 5)))
         if thickness >= 2:
-            mask = cv2.dilate(mask, self._MORPH_MASK, iterations=thickness)
+            mask = cv2.dilate(mask, self._MORPH_MASK, iterations=thickness - 1)
 
         mask = cv2.resize(mask, None, fx=size / 100, fy=size / 100, interpolation=cv2.INTER_AREA)
 
-        width = int(55 * size / 100)
         height = int(100 * size / 100)
-
+        width = int(70 * size / 100)
         mask = mask[:height, :width]
-
+        mask.setflags(write=False)
         return mask
 
     def get_mask_shape(self, ch, size: float) -> tuple[int, int]:
@@ -81,6 +85,9 @@ class ConsolaCharFactory(AbstractCharFactory):
 
     def get_global_baseline(self, size: float) -> int:
         return int(100 * size / 100)
+
+    def char_gap_correction(self, size: float) -> int:
+        return int(-2 * size / 15)
 
 
 class CharPrinter:
@@ -106,7 +113,8 @@ class CharPrinter:
         global_baseline = self._char_factory.get_global_baseline(size)
         warned = False
         len_printed = 0
-        for ch in text:
+        width_array = self.text_width_array(text, size)
+        for i, ch in enumerate(text):
             mask = self._char_factory.get_char_mask(ch, size, thickness)
             char_baseline = self._char_factory.get_char_baseline(ch, size)
             x_ofs = x
@@ -130,7 +138,7 @@ class CharPrinter:
             reg >>= 8
             im[s] = reg.astype(np.uint8)
 
-            x += mask.shape[1]
+            x += width_array[i]
             len_printed += 1
 
         return text[len_printed:]
@@ -140,7 +148,11 @@ class CharPrinter:
         return int(size)
 
     def text_width_array(self, text: str, size: float) -> np.ndarray:
-        a = np.array([self._char_factory.get_mask_shape(ch, size)[0] for ch in text]).astype(int)
+        a = np.array([
+            self._char_factory.get_mask_shape(ch, size)[0]
+            + self._char_factory.char_gap_correction(size)
+            for ch in text
+        ]).astype(int)
         a.setflags(write=False)
         return a
 
@@ -341,11 +353,6 @@ if __name__ == '__main__':
                 if cv2.waitKey(1) == ord("q"):
                     break
         elif testcase == "multiline":
-            text = """    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec venenatis blandit nulla vitae viverra. Mauris tincidunt cursus massa sed tincidunt. Vivamus lobortis fermentum massa ut vehicula. Nullam id tellus egestas, porta sem eget, ornare nisi. Praesent sapien tellus, elementum eget gravida non, faucibus nec leo. Fusce vitae erat ac sapien sollicitudin pellentesque et at purus. Nunc justo mauris, facilisis eu interdum in, ullamcorper sit amet augue. Curabitur hendrerit, leo eu faucibus efficitur, lacus massa tempus tellus, ac imperdiet felis velit nec ex. Nullam nec sapien pharetra, lacinia arcu placerat, lobortis tellus. Vivamus at lorem vel magna fringilla convallis. Sed egestas semper pretium. Etiam lorem lorem, euismod ut dictum et, efficitur sit amet nisl. Nunc eleifend dignissim ex non lacinia. Etiam vitae tortor elit. Donec egestas consequat elit, ut varius lorem sollicitudin semper. Quisque sagittis neque eget sem consectetur convallis elementum et felis.
-    Etiam pulvinar dictum lectus eu sodales. Mauris sodales molestie enim sed faucibus. Etiam ac tellus vel eros dapibus elementum. Mauris sit amet ullamcorper nisi, rhoncus tincidunt sem. Sed sit amet diam consequat, tempor quam vitae, eleifend ante. In sem est, luctus nec nunc vitae, pharetra sagittis urna. Orci varius natoque penatibus et magnis dis parturient montes, nascetur ridiculus mus. Integer auctor vitae ex sit amet hendrerit. In hac habitasse platea dictumst. Phasellus id ipsum at libero eleifend tincidunt. Cras sed nisi ornare, dignissim neque sit amet, lobortis neque. Ut mattis ut dui ut condimentum.
-    Curabitur id eros quis tellus iaculis pretium non id felis. Donec sed venenatis lorem. Mauris et massa nec lorem sollicitudin feugiat. Duis sit amet commodo eros. Nulla ut arcu mauris. Suspendisse semper urna ut enim tincidunt, eget iaculis eros ultricies. Class aptent taciti sociosqu ad litora torquent per conubia nostra, per inceptos himenaeos. Aliquam a rhoncus lorem, eget vehicula nisi. Aliquam laoreet elit eu pretium feugiat.
-    Ut vulputate, nulla vitae auctor feugiat, metus orci suscipit sem, quis facilisis lorem diam non metus. Nam luctus nisi id pretium sagittis. Pellentesque sed ipsum facilisis, molestie velit vel, vulputate eros. Morbi aliquam nisl a rutrum pharetra. In consectetur ex in sollicitudin semper. Vivamus nec libero auctor sem consectetur pellentesque. Quisque nec tincidunt arcu, ac luctus lectus. Nulla convallis turpis purus. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Vestibulum condimentum diam non magna blandit bibendum. Nulla posuere consectetur sem, a ultrices sapien tempus et. Duis ut velit egestas, ullamcorper sem nec, auctor lorem.
-    Pellentesque et ligula velit. Curabitur id mauris sed lectus ultrices porttitor. Donec ut sapien ac velit fermentum vestibulum. Etiam rutrum felis ligula, consectetur maximus justo molestie vitae. Sed condimentum dignissim mauris vel egestas. Donec dapibus velit enim, nec aliquam diam efficitur et. Proin mollis in velit ac facilisis. Nulla nec odio consequat, molestie magna in, cursus diam. Mauris imperdiet a nisl sed aliquet."""
             text = """A\nBB\nCCC\nDDDDDDDDDDDD\n\nThis function uses the same algorithm as the builtin python bisect.bisect_left (side='left') and bisect.bisect_right (side='right') functions, which is also vectorized in the v argument.\nThis function uses the same algorithm as the builtin python bisect.bisect_left (side='left') and bisect.bisect_right (side='right') functions, which is also vectorized in the v argument."""
 
             max_width = 200
