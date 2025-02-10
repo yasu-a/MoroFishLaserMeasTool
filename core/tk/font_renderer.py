@@ -140,7 +140,9 @@ class CharPrinter:
         return int(size)
 
     def text_width_array(self, text: str, size: float) -> np.ndarray:
-        return np.array([self._char_factory.get_mask_shape(ch, size)[0] for ch in text]).astype(int)
+        a = np.array([self._char_factory.get_mask_shape(ch, size)[0] for ch in text]).astype(int)
+        a.setflags(write=False)
+        return a
 
     class LineWrapPlanner:
         def __init__(self, text: str, size: float, max_width: int, char_width_array: np.ndarray):
@@ -223,6 +225,20 @@ class CharPrinter:
             self.flush(ignore_empty=True)
             return self._planned_lines
 
+    @lru_cache(maxsize=65536)
+    def plan_line_wrap(self, text: str, size: float, max_width: int):
+        lines = self.LineWrapPlanner(
+            text,
+            size,
+            max_width,
+            self.text_width_array(text, size),
+        ).plan_lines()
+        if lines is None:
+            self._logger.warning(f"Failed to plan line wrap\ntext={text}")
+            return text, 0
+        text = "\n".join(lines)
+        return text
+
     def put_text_multiline(
             self,
             im: np.ndarray,
@@ -237,16 +253,7 @@ class CharPrinter:
             line_margin: int = 1,
     ) -> tuple[str, int]:  # returns rest of text and height
         # plan newlines
-        lines = self.LineWrapPlanner(
-            text,
-            size,
-            max_width,
-            self.text_width_array(text, size),
-        ).plan_lines()
-        if lines is None:
-            self._logger.warning(f"Failed to plan line wrap\ntext={text}")
-            return text, 0
-        text = "\n".join(lines)
+        text = self.plan_line_wrap(text, size, max_width)
 
         y_start = pos[1]
         x, y = pos
@@ -277,6 +284,19 @@ class CharPrinter:
             prev_len = len(text)
             y += height + line_margin
         return text, y_bottom - y_start
+
+    def get_cache_stat(self):
+        dct = {}
+        for name in itertools.chain(dir(self), dir(self._char_factory)):
+            obj = getattr(self, name) if name in dir(self) else getattr(self._char_factory, name)
+            if not hasattr(obj, "cache_info"):
+                continue
+            cache_info_obj = getattr(obj, "cache_info")
+            if not callable(cache_info_obj):
+                continue
+            cache_info = cache_info_obj()
+            dct[name] = cache_info
+        return dct
 
 
 if __name__ == '__main__':

@@ -49,7 +49,7 @@ class CheckBoxComponent(Component):
     def key_event(self, event: KeyEvent) -> bool:
         if event.down:
             if self.get_scene().get_focus_component() is self:
-                if event.key == Key.SPACE or event.key == Key.ENTER:
+                if event.key == Key.ENTER:
                     self._value = not self._value
                     self.get_scene().notify_listener("value-changed", self)
                     return True

@@ -8,6 +8,11 @@ class CameraParamProfile:
     name: str
     mat: np.ndarray
 
+    def __post_init__(self):
+        assert isinstance(self.mat, np.ndarray), "mat should be a numpy array"
+        assert self.mat.ndim == 2, "mat should be 2D"
+        assert self.mat.shape == (3, 4), "mat should have shape of (3, 4)"
+
     def to_json(self):
         return {
             "name": self.name,

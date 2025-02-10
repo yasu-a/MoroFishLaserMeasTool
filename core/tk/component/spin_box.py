@@ -57,7 +57,7 @@ class SpinBoxComponent(Component):
 
     def key_event(self, event: KeyEvent) -> bool:
         if self.get_scene().get_focus_component() is self:
-            if event.down:
+            if event.enter:
                 if event.key == Key.RIGHT:
                     self.increment_value()
                     return True

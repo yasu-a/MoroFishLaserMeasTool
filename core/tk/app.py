@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 
+from app_logging import create_logger
 from core.tk.cv2_handler import CV2KeyHandler, CV2MouseHandler
 from core.tk.event import KeyEvent, MouseEvent
 from core.tk.font_renderer import CharPrinter, ConsolaCharFactory
@@ -58,7 +59,7 @@ class ApplicationParams:
 
 _DEFAULT_PARAMS = ApplicationParams(
     rendering_fps=30,
-    cv2_wait_key_delay=10,
+    cv2_wait_key_delay=3,
     window_size=ApplicationWindowSize(
         min_width=1000,
         min_height=700,
@@ -71,6 +72,8 @@ _DEFAULT_PARAMS = ApplicationParams(
 
 
 class Application(ABC):
+    _logger = create_logger()
+
     def __new__(cls, *args, **kwargs):
         instance = super().__new__(cls)
         register_app(instance)

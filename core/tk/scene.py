@@ -137,7 +137,7 @@ class Scene(SceneEventHandlers, ABC):
                 handled = True
                 break
         if not handled:
-            if event.down:
+            if event.enter:
                 if event.key == Key.UP:
                     self.move_focus(-1)
                     handled = True

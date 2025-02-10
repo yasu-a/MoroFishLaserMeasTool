@@ -1,4 +1,5 @@
 import copy
+import itertools
 import time
 
 import cv2
@@ -110,7 +111,7 @@ class MyApplication(Application):
 
         self.reflect_camera_config()
 
-        while True:
+        for loop_count in itertools.count():
             t_loop_start = time.monotonic()
 
             if self._is_camera_config_modified():
@@ -147,3 +148,7 @@ class MyApplication(Application):
             t_loop_end = time.monotonic()
             delay = int(((1 / self._params.rendering_fps) - (t_loop_end - t_loop_start)) * 1000)
             self.do_event(delay)
+
+            if (loop_count - self._params.rendering_fps) % (self._params.rendering_fps * 30) == 0:
+                from pprint import pformat
+                self._logger.debug(pformat(self._params.char_printer.get_cache_stat()))

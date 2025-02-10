@@ -337,6 +337,7 @@ class CameraParamScene(MyScene):
             if event.key == Key.S:
                 cb = self.find_component(CheckBoxComponent, "cb-snap")
                 cb.set_value(not cb.get_value())
+        if event.enter:
             if event.key == Key.A:
                 self.move_onto_prev_point()
             if event.key == Key.D:

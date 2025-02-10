@@ -36,8 +36,8 @@ class ButtonComponent(Component):
 
     def key_event(self, event: KeyEvent) -> bool:
         if event.down:
-            if self.get_scene().get_focus_component() is self:
-                if event.key == Key.ENTER or event.key == Key.RIGHT:
+            if event.key == Key.ENTER:
+                if self.get_scene().get_focus_component() is self:
                     self.click()
                     return True
         return super().key_event(event)

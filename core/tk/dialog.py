@@ -3,7 +3,6 @@ from typing import Callable
 
 import numpy as np
 
-import repo.image
 from core.tk.app import ApplicationWindowSize
 from core.tk.component.button import ButtonComponent
 from core.tk.component.component import Component
@@ -88,13 +87,14 @@ class MessageDialog(Dialog):
         self._active_button_index = (self._active_button_index - 1) % len(self._buttons)
 
     def key_event(self, event: KeyEvent) -> bool:
-        if event.down:
+        if event.enter:
             if event.key == Key.LEFT or event.key == Key.UP:
                 self.select_previous_button()
                 return True
             if event.key == Key.RIGHT or event.key == Key.DOWN:
                 self.select_next_button()
                 return True
+        if event.down:
             if event.key == Key.ENTER:
                 self._callback(self._buttons[self._active_button_index])
                 return True
@@ -222,7 +222,7 @@ class SelectItemDialog(Dialog):
         )
 
     def key_event(self, event: KeyEvent) -> bool:
-        if event.down:
+        if event.enter:
             if event.key == Key.LEFT:
                 self.select_previous_page()
                 return True
@@ -235,6 +235,7 @@ class SelectItemDialog(Dialog):
             if event.key == Key.DOWN:
                 self.select_next_item()
                 return True
+        if event.down:
             if event.key == Key.ENTER:
                 self._callback(self.get_current_item())
                 return True
@@ -245,18 +246,43 @@ class SelectItemDialog(Dialog):
 
 
 class SelectImageItemDialog(SelectItemDialog):
-    def selection_change_event(self, name: str | None):
-        super().selection_change_event(name)
+    def __init__(
+            self,
+            *,
+            title: str,
+            items: list[str],
+            callback: Callable[[str | None], None],
+            n_items_per_page: int = 10,
+            image_getter: Callable[[str], np.ndarray],
+    ):
+        super().__init__(
+            title=title,
+            items=items,
+            callback=callback,
+            n_items_per_page=n_items_per_page,
+        )
+        self._image_getter = image_getter
+
+    def update_preview(self):
+        name = self.get_current_item()
         if name is not None:
             scene = get_app().get_active_scene()
             if scene is not None:
-                scene.set_picture_in_picture(repo.image.get(name).data)
+                scene.set_picture_in_picture(self._image_getter(name))
+
+    def selection_change_event(self, name: str | None):
+        super().selection_change_event(name)
+        self.update_preview()
+
+    def load_event(self):
+        super().load_event()
+        self.update_preview()
 
     def unload_event(self):
-        super().unload_event()
         scene = get_app().get_active_scene()
         if scene is not None:
             scene.set_picture_in_picture(None)
+        super().unload_event()
 
 
 class InputNameDialog(Dialog):

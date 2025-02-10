@@ -1,10 +1,13 @@
 import cv2
 
+from app_logging import create_logger
 from core.tk.event import KeyEvent, MouseEvent
 from core.tk.key import Key, code_to_key, Modifier
 
 
 class CV2KeyHandler:
+    _logger = create_logger()
+
     def __init__(self, min_delay: int):
         self._min_delay = min_delay
 
@@ -12,10 +15,10 @@ class CV2KeyHandler:
 
     def cv2_wait_key_and_iter_key_events(self, delay: int = None):
         if delay is None:
-            delay = self._min_delay
+            actual_delay = self._min_delay
         else:
-            delay = max(delay, self._min_delay)
-        code = cv2.waitKeyEx(delay)
+            actual_delay = max(delay, self._min_delay)
+        code = cv2.waitKeyEx(actual_delay)
         if code >= 0:
             key_result = code_to_key(code)
             if key_result is not None:

@@ -160,6 +160,7 @@ class MainScene(MyScene):
                         title="Select Image for Camera Calibration",
                         items=repo.image.list_names(),
                         callback=callback,
+                        image_getter=lambda name: repo.image.get(name).data,
                     )
                 )
                 return

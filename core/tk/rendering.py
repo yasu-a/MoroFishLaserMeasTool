@@ -24,6 +24,22 @@ class UIRenderingContext:
     sub_context: str | None = None
     canvas_image: np.ndarray | None = None
 
+    def __hash__(self):
+        return hash(
+            (
+                id(self.style),
+                tuple(sorted(self.fg_colors.items())),
+                tuple(sorted(self.bg_colors.items())),
+                tuple(sorted(self.edge_colors.items())),
+                id(self.char_printer),
+                self.font_size,
+                self.top,
+                self.left,
+                self.max_width,
+                self.sub_context,
+            )
+        )
+
     @contextlib.contextmanager
     def enter_sub_context(self, sub_context: str) -> ContextManager["UIRenderingContext"]:
         prev_sub_context = self.sub_context
@@ -110,7 +126,7 @@ class Canvas:
 
         # edge
         if edge_color is not None:
-            edge_thickness = base_thickness + 6
+            edge_thickness = base_thickness + 10
             self._ctx.char_printer.put_text_multiline(
                 im=self._im,
                 pos=pos,

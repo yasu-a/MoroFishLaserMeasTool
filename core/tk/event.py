@@ -23,7 +23,7 @@ class KeyEvent:
 
     @property
     def enter(self) -> bool:
-        return self.press_count >= 9 and self.press_count % 3 == 0
+        return self.down or self.press_count >= 9 and self.press_count % 3 == 0
 
 
 @dataclass(frozen=True)

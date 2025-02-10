@@ -12,7 +12,7 @@ from core.tk.component.component import Component
 from core.tk.component.label import LabelComponent
 from core.tk.component.spacer import SpacerComponent
 from core.tk.component.toast import Toast
-from core.tk.dialog import InputNameDialog, SelectItemDialog
+from core.tk.dialog import InputNameDialog, SelectImageItemDialog
 from core.tk.event import KeyEvent
 from core.tk.global_state import get_app
 from core.tk.key import Key
@@ -208,10 +208,11 @@ class ScreenShotScene(MyScene):
                     )
 
             get_app().show_dialog(
-                SelectItemDialog(
+                SelectImageItemDialog(
                     title="Select Raw Image",
                     items=repo.raw_image.list_names(),
                     callback=callback,
+                    image_getter=lambda name: repo.raw_image.get(name).data,
                 )
             )
             return
