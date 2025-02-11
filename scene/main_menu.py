@@ -27,6 +27,7 @@ from repo import open_in_explorer
 from scene.camera_param import CameraParamScene
 from scene.distortion_correction import DistortionCorrectionScene
 from scene.global_config import GlobalConfigScene
+from scene.laser_param import LaserParamScene
 from scene.my_scene import MyScene
 from scene.screenshot import ScreenShotScene
 
@@ -323,7 +324,38 @@ class MainScene(MyScene):
                 return
             if sender.get_name() == "b-laser-param":
                 # Implement laser parameter scene
-                pass
+                name = repo.global_config.get().active_profile_names.camera_param_profile_name
+                if name is None:
+                    get_app().make_toast(
+                        Toast(
+                            self,
+                            "error",
+                            "Camera Parameter Profile is not selected",
+                        )
+                    )
+                    return
+                camera_param_profile = repo.camera_param.get(name)
+
+                def callback(item: str | None) -> None:
+                    get_app().close_dialog()
+                    if item is not None:
+                        image = repo.image.get(item)
+                        get_app().move_to(
+                            LaserParamScene(
+                                image=image,
+                                camera_param_profile=camera_param_profile,
+                            )
+                        )
+
+                get_app().show_dialog(
+                    SelectImageItemDialog(
+                        title="Select Image for Laser Calibration",
+                        items=repo.image.list_names(),
+                        callback=callback,
+                        image_getter=lambda name: repo.image.get(name).data,
+                    )
+                )
+                return
             if sender.get_name() == "b-laser-ext":
                 # Implement laser extraction scene
                 pass

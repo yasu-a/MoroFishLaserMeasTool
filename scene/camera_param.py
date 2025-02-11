@@ -21,7 +21,7 @@ from core.tk.event import KeyEvent, MouseEvent
 from core.tk.global_state import get_app
 from core.tk.key import Key
 from dot_snap import DotSnapComputer
-from model.camera_param import CameraParamProfile
+from model.camera_param import CameraParamProfile, CameraParam
 from model.image import Image
 from scene.my_scene import MyScene
 from util.camera_calib_model import CameraCalibModel, DEFAULT_CALIB_MODEL
@@ -61,7 +61,7 @@ class InputPoints:
                 return None
             self._camera_param_modification_count = self._modification_count
             self._logger.debug(
-                f"Camera parameter recalculated\n"
+                f"Camera parameter solved\n"
                 f"{pd.DataFrame(self._camera_param).round(6)!s}\n"
                 f"{pd.DataFrame(points).round(0)!s}"
             )
@@ -236,7 +236,7 @@ class CameraParamScene(MyScene):
                 self._calib_model.render_3d(
                     width=500,
                     height=500,
-                    p_highlighted=p_highlighted,
+                    point_colors=p_highlighted,
                 ),
                 500,
             )
@@ -296,23 +296,23 @@ class CameraParamScene(MyScene):
                 cv2.LINE_AA,
             )
 
-            # カーソル
-            cv2.circle(
-                canvas,
-                self._cursor_pos,
-                8,
-                (255, 255, 255),
-                2,
-                cv2.LINE_AA,
-            )
-            cv2.circle(
-                canvas,
-                self._cursor_pos,
-                8,
-                (0, 0, 200),
-                1,
-                cv2.LINE_AA,
-            )
+        # カーソル
+        cv2.circle(
+            canvas,
+            self._cursor_pos,
+            8,
+            (255, 255, 255),
+            2,
+            cv2.LINE_AA,
+        )
+        cv2.circle(
+            canvas,
+            self._cursor_pos,
+            8,
+            (0, 0, 200),
+            1,
+            cv2.LINE_AA,
+        )
 
         # 点
         for i in (self._input_points.iter_indexes()):
@@ -440,7 +440,9 @@ class CameraParamScene(MyScene):
                 else:
                     profile = CameraParamProfile(
                         name=name,
-                        mat=mat,
+                        param=CameraParam(
+                            mat=mat,
+                        ),
                     )
                     repo.camera_param.put(profile)
                     get_app().make_toast(

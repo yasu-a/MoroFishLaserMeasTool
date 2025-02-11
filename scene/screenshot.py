@@ -42,18 +42,18 @@ class ScreenShotScene(MyScene):
         self.add_component(ButtonComponent(self, "Take Screenshot <SPACE>", name="b-take"))
         self.add_component(SpacerComponent(self))
         self.add_component(LabelComponent(self, "Distortion Correction"))
-        self.add_component(
-            CheckBoxComponent(
-                self,
-                (
-                    f"Use Profile: {self._distortion_profile.name}"
-                    if self._distortion_profile is not None
-                    else "Use Profile: (PROFILE NOT CONFIGURED)"
-                ),
-                True,
-                name="cb-ud",
-            )
+        cb_ud = CheckBoxComponent(
+            self,
+            (
+                f"Use Profile: {self._distortion_profile.name}"
+                if self._distortion_profile is not None
+                else "Use Profile: (PROFILE NOT CONFIGURED)"
+            ),
+            False,
+            name="cb-ud",
         )
+        self.add_component(cb_ud)
+        cb_ud.set_value(True)
         self.add_component(
             ButtonComponent(self, "Apply Correction to Image", name="b-apply-correction")
         )

@@ -2,6 +2,7 @@ import time
 
 import cv2
 import numpy as np
+from scipy.spatial.transform import Rotation
 
 
 # noinspection PyUnreachableCode
@@ -57,6 +58,8 @@ class CameraCalibModel:
         self._f = f  # focal length (float)
         self._size = size  # size of box (float) unit: mm
 
+        self._last_render_planes: np.ndarray | None = None
+
     def get_world_point_count(self) -> int:
         return self._w_points.shape[0]
 
@@ -70,23 +73,46 @@ class CameraCalibModel:
     def get_size(self) -> float:
         return self._size
 
+    def get_plane_at(self, x, y) -> int | None:
+        if self._last_render_planes is None:
+            return None
+        try:
+            i = self._last_render_planes[y, x]
+        except IndexError:
+            return None
+        else:
+            if i < 0:
+                return None
+            return i
+
+    def get_plane_corners(self, i: int) -> np.ndarray:
+        return self._planes[i]
+
     def render_3d(
             self,
             width: int,
             height: int,
-            p_highlighted: dict[int, tuple[int, int, int]] = None,
+            point_colors: dict[int, tuple[int, int, int]] = None,
+            plane_colors: dict[int, tuple[int, int, int]] = None,
     ) -> np.ndarray:
         canvas = np.zeros((height, width, 3), np.uint8)
 
         v_eye = self._v_eye / np.linalg.norm(self._v_eye)
-        v_eye = v_eye + np.array([
-            0.1 * np.sin(2 * np.pi * 0.05 * time.time()),
-            0.05 * np.cos(2 * np.pi * 0.05 * time.time()),
-            0,
-        ])
         p_eye = self._p_dist * -v_eye
         v_light = self._v_light / np.linalg.norm(self._v_light)
         f = self._f * min(width, height)
+
+        mat_obj = np.eye(4)
+        mat_obj[:3, :3] @= Rotation.from_euler(
+            'x',
+            10 * np.sin(2 * np.pi * 0.05 * time.time()),
+            degrees=True,
+        ).as_matrix()
+        mat_obj[:3, :3] @= Rotation.from_euler(
+            'y',
+            10 * np.cos(2 * np.pi * 0.05 * time.time()),
+            degrees=True,
+        ).as_matrix()
 
         mat_world_rot = np.eye(4)
         mat_world_rot[:3, :3] = rotation_matrix_from_vectors(v_eye, np.array([0, 0, 1]))
@@ -98,7 +124,7 @@ class CameraCalibModel:
             [0, 0, 1, 0],
         ])
 
-        mat_world_to_camera = mat_world_rot @ mat_world_trans
+        mat_world_to_camera = mat_world_rot @ mat_world_trans @ mat_obj
 
         mat_world_rot_correct = np.eye(4)
         mat_world_rot_correct[:3, :3] @= np.array([
@@ -116,13 +142,18 @@ class CameraCalibModel:
             return np.array([x / z * f + ofs_x, y / z * f + ofs_y])
 
         # draw planes
-        for plane in self._planes:
+        self._last_render_planes = np.full(canvas.shape[:2], -1, np.int16)
+        if plane_colors is None:
+            plane_colors = {}
+        for i, plane in enumerate(self._planes):
             p1, p2, p3, p4 = plane
 
+            base_color = np.array(plane_colors.get(i, [255, 255, 255]), np.uint8)
+
             n = normal_from_three_points(p1, p2, p3)
-            brightness = abs(np.dot(n, v_light))
-            brightness = brightness * 0.8 + 0.2
-            color = tuple([int(255 * brightness)] * 3)
+            brightness = np.abs(np.dot(n, v_light))
+            brightness = brightness * 0.9 + 0.1
+            color = base_color * brightness
 
             p1, p2 = convert(p1), convert(p2)
             p3, p4 = convert(p3), convert(p4)
@@ -139,10 +170,22 @@ class CameraCalibModel:
                 color,
             )
 
+            cv2.fillConvexPoly(
+                self._last_render_planes,
+                np.array([[p1], [p2], [p3]]).astype(np.int32),
+                (i,),
+            )
+
+            cv2.fillConvexPoly(
+                self._last_render_planes,
+                np.array([[p3], [p4], [p1]]).astype(np.int32),
+                (i,),
+            )
+
         # draw points
         for i, p in enumerate(self._w_points):
-            if p_highlighted is not None and i in p_highlighted:
-                color = p_highlighted[i]
+            if point_colors is not None and i in point_colors:
+                color = point_colors[i]
                 thickness = 2
             else:
                 color = 255, 0, 0
@@ -331,13 +374,31 @@ DEFAULT_CALIB_MODEL = CameraCalibModel(
 )
 
 if __name__ == '__main__':
+    cv2.namedWindow("win")
+
+    mx, my = 0, 0
+
+
+    def mouse_callback(
+            event, x, y, flags, param
+    ):
+        global mx, my
+        mx, my = x, y
+
+
+    cv2.setMouseCallback("win", mouse_callback)
     while True:
+        current_plane = DEFAULT_CALIB_MODEL.get_plane_at(mx, my)
+        plane_colors = {}
+        if current_plane is not None:
+            plane_colors[current_plane] = (0, 0, 255)
         im = DEFAULT_CALIB_MODEL.render_3d(
             500,
             500,
-            p_highlighted={
+            point_colors={
                 int(time.time() * 3) % DEFAULT_CALIB_MODEL.get_world_point_count(): (0, 0, 255)
             },
+            plane_colors=plane_colors,
         )
 
         cv2.imshow("win", im)

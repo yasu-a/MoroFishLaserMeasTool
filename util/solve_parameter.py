@@ -48,7 +48,7 @@ def solve_equations_camera(points: np.ndarray) -> np.ndarray:
 #         )
 
 
-def solve_equations_laser(points: np.ndarray):
+def solve_equations_laser(points: np.ndarray) -> np.ndarray:
     # 未知数
     b11, b12, b13 = symbols('b11 b12 b13')
 
@@ -60,7 +60,10 @@ def solve_equations_laser(points: np.ndarray):
 
     # 連立方程式の解
     solution = solve(equations, (b11, b12, b13))
-    # 解を少数に変換
-    decimal_solution = {var: val.evalf() for var, val in solution.items()}
 
-    return decimal_solution
+    return np.array([
+        solution[b11].evalf(),
+        solution[b12].evalf(),
+        solution[b13].evalf(),
+        1.0,
+    ])

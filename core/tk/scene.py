@@ -23,6 +23,70 @@ class SceneEventHandlers(ABC):
         pass
 
 
+class PictureInPicturePlaceholder:
+    def __init__(self):
+        self._im: np.ndarray | None = None
+        self._x_ratio: float | None = None
+        self._y_ratio: float | None = None
+
+        self._screen_size: tuple[int, int] | None = None
+
+        self._margin = 20
+
+    def set_image(self, im: np.ndarray | None, *, width: int = None, height: int = None):
+        if im is None:
+            assert width is None and height is None
+            self._im = None
+        else:
+            im_h, im_w = im.shape[:2]
+            if width is None and height is None:
+                raise ValueError("Either width or height must be specified")
+            elif width is None:
+                width = int(im_w / im_h * height)
+            elif height is None:
+                height = int(im_h / im_w * width)
+            self._x_ratio = width / im_w
+            self._y_ratio = height / im_h
+            self._im = cv2.resize(im, (width, height), cv2.INTER_AREA)
+
+    def set_screen_size(self, width, height):
+        self._screen_size = width, height
+
+    def is_ready(self) -> bool:
+        return self._screen_size is not None and self._im is not None
+
+    def get_offset(self) -> tuple[int, int] | None:
+        if not self.is_ready():
+            return None
+        x_size, y_size = self._screen_size
+        return x_size - self._margin - self._im.shape[1], y_size - self._margin - self._im.shape[0]
+
+    def get_end(self) -> tuple[int, int] | None:
+        if not self.is_ready():
+            return None
+        x_size, y_size = self._screen_size
+        return x_size - self._margin, y_size - self._margin
+
+    def translate_screen_to_local(self, x: int, y: int) -> tuple[int, int] | None:
+        if not self.is_ready():
+            return None
+        x_ofs, y_ofs = self.get_offset()
+        x_local = (x - x_ofs) / self._x_ratio
+        y_local = (y - y_ofs) / self._y_ratio
+        x_end, y_end = self.get_end()
+        if x_local < 0 or x_local >= x_end or y_local < 0 or y_local >= y_end:
+            return None  # out of screen range
+        return x_local, y_local
+
+    def get_size(self) -> tuple[int, int] | None:
+        if not self.is_ready():
+            return None
+        return self._im.shape[1], self._im.shape[0]
+
+    def get_image(self) -> np.ndarray | None:
+        return self._im
+
+
 C = TypeVar("C", bound="Component")
 
 
@@ -32,7 +96,7 @@ class Scene(SceneEventHandlers, ABC):
         self._is_stationed = is_stationed  # disallow go-back
         self._global_focus_index = 0
 
-        self._picture_in_picture: np.ndarray | None = None
+        self._pip = PictureInPicturePlaceholder()  # picture in picture
 
         self._listener_enabled = True
 
@@ -88,32 +152,28 @@ class Scene(SceneEventHandlers, ABC):
         global_focus_index = self._global_focus_index
         return self.map_global_focus_index(global_focus_index)[0]
 
-    def set_picture_in_picture(self, image: np.ndarray | None, height: int = 200) -> None:
-        if image is None:
-            self._picture_in_picture = None
-        else:
-            sub_h, sub_w = image.shape[:2]
-            sub_h_small = height
-            sub_w_small = int(sub_w / sub_h * sub_h_small)
-            im = cv2.resize(image, (sub_w_small, sub_h_small))
-            self._picture_in_picture = im
+    def set_picture_in_picture(
+            self,
+            image: np.ndarray | None,
+            height: int = None,
+            width: int = None,
+    ) -> None:
+        if image is not None and height is None and width is None:
+            height = 300
+        self._pip.set_image(image, width=width, height=height)
 
     def render_ui(self, ctx: UIRenderingContext) -> UIRenderingContext:
-        # picture in picture at bottom left
-        if self._picture_in_picture is not None:
-            margin = 20
+        self._pip.set_screen_size(width=ctx.canvas.width, height=ctx.canvas.height)
 
-            canvas = ctx.canvas
-            h_canvas, w_canvas = canvas.height, canvas.width
-            im = self._picture_in_picture
-            h_im, w_im = im.shape[:2]
-            canvas.paste(
-                im=im,
-                pos=(w_canvas - w_im - margin, h_canvas - h_im - margin)
+        # picture in picture at bottom left
+        if self._pip.is_ready():
+            ctx.canvas.paste(
+                im=self._pip.get_image(),
+                pos=self._pip.get_offset(),
             )
-            canvas.rectangle(
-                pos=(w_canvas - w_im - margin, h_canvas - h_im - margin),
-                size=(w_im, h_im),
+            ctx.canvas.rectangle(
+                pos=self._pip.get_offset(),
+                size=self._pip.get_size(),
                 color=ctx.style.border_normal,
             )
 
@@ -123,6 +183,9 @@ class Scene(SceneEventHandlers, ABC):
             ctx.top += rendering_result.height + 2
 
         return ctx
+
+    def translate_onto_picture_in_picture(self, x: int, y: int) -> tuple[int, int] | None:
+        return self._pip.translate_screen_to_local(x, y)
 
     def move_focus(self, delta: int) -> None:
         total_focus_count = self.get_total_focus_count()

@@ -4,9 +4,9 @@ import numpy as np
 
 
 @dataclass(slots=True)
-class LaserParamProfile:
-    name: str
+class LaserParam:
     vec: np.ndarray
+    error: float
 
     def __post_init__(self):
         assert isinstance(self.vec, np.ndarray), "vec should be a numpy array"
@@ -15,15 +15,36 @@ class LaserParamProfile:
             self.vec = np.array([*self.vec, 1])
         assert self.vec.size == 4, "vec should have 4 elements"
 
+        self.error = float(self.error)
+
+    def to_json(self):
+        return {
+            "vec": self.vec.tolist(),
+            "error": self.error,
+        }
+
+    @classmethod
+    def from_json(cls, body):
+        return LaserParam(
+            vec=np.array(body["vec"]),
+            error=body["error"],
+        )
+
+
+@dataclass(slots=True)
+class LaserParamProfile:
+    name: str
+    param: LaserParam
+
     def to_json(self):
         return {
             "name": self.name,
-            "vec": self.vec.tolist(),
+            "param": self.param.to_json(),
         }
 
     @classmethod
     def from_json(cls, json_data):
         return cls(
             name=json_data["name"],
-            vec=np.array(json_data["vec"]),
+            param=LaserParam.from_json(json_data["param"]),
         )
