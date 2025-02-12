@@ -1,6 +1,6 @@
 import contextlib
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, Iterable
 from typing import TypeVar
 
 import cv2
@@ -47,6 +47,7 @@ class PictureInPicturePlaceholder:
                 height = int(im_h / im_w * width)
             self._x_ratio = width / im_w
             self._y_ratio = height / im_h
+            # noinspection PyTypeChecker
             self._im = cv2.resize(im, (width, height), cv2.INTER_AREA)
 
     def set_screen_size(self, width, height):
@@ -90,9 +91,31 @@ class PictureInPicturePlaceholder:
 C = TypeVar("C", bound="Component")
 
 
+class ComponentCollection:
+    def __init__(self):
+        self._components: "list[Component]" = []
+        self._name_to_index: dict[str, int] = {}
+
+    def add(self, c: "Component") -> None:
+        index = len(self._components)
+        if c.get_name() is not None:
+            if c.get_name() in self._name_to_index:
+                raise ValueError(f"Component with name '{c.get_name()}' already exists")
+            self._name_to_index[c.get_name()] = index
+        self._components.append(c)
+
+    def find_by_name(self, name: str) -> "Component":
+        if name not in self._name_to_index:
+            raise ValueError(f"Component with name '{name}' not found")
+        return self._components[self._name_to_index[name]]
+
+    def __iter__(self) -> Iterable["Component"]:
+        yield from self._components
+
+
 class Scene(SceneEventHandlers, ABC):
     def __init__(self, *, is_stationed=False):
-        self._components: list[Component] = []
+        self._components = ComponentCollection()
         self._is_stationed = is_stationed  # disallow go-back
         self._global_focus_index = 0
 
@@ -120,7 +143,7 @@ class Scene(SceneEventHandlers, ABC):
                 raise ValueError(f"Unknown event name: {name}")
 
     def add_component(self, component: "Component") -> None:
-        self._components.append(component)
+        self._components.add(component)
 
     def find_component(self, component_type: type[C], name: str) -> C:
         for c in self._components:
@@ -136,7 +159,7 @@ class Scene(SceneEventHandlers, ABC):
 
     def map_global_focus_index(self, global_focus_index: int) \
             -> "tuple[Component | None, int]":  # component and local focus index
-        for i, c in enumerate(self._components):
+        for i, c in enumerate(self._components.__iter__()):
             if global_focus_index < c.focus_count():
                 local_focus_index = global_focus_index
                 return c, local_focus_index

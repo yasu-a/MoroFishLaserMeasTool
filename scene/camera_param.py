@@ -199,7 +199,7 @@ class CameraParamScene(MyScene):
         self.add_component(
             CheckBoxComponent(
                 self,
-                "Show 3D model (TAB)",
+                "Show 3D model (W)",
                 True,
                 name="cb-show-3d-model",
             )
@@ -348,7 +348,7 @@ class CameraParamScene(MyScene):
 
     def key_event(self, event: KeyEvent) -> bool:
         if event.down:
-            if event.key == Key.TAB:
+            if event.key == Key.W:
                 cb = self.find_component(CheckBoxComponent, "cb-show-3d-model")
                 cb.set_value(not cb.get_value())
             if event.key == Key.S:

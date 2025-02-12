@@ -18,8 +18,6 @@ from core.tk.component.toast import Toast
 from core.tk.dialog import MessageDialog, SelectImageItemDialog, SelectItemDialog
 from core.tk.event import KeyEvent
 from core.tk.global_state import get_app
-from core.tk.key import Key
-from core.tk.rendering import UIRenderingContext
 from fps_counter import FPSCounterStat
 from model.active_profile_names import ActiveProfileNames
 from my_app import MyApplication
@@ -27,6 +25,7 @@ from repo import open_in_explorer
 from scene.camera_param import CameraParamScene
 from scene.distortion_correction import DistortionCorrectionScene
 from scene.global_config import GlobalConfigScene
+from scene.laser_detection import LaserDetectionScene
 from scene.laser_param import LaserParamScene
 from scene.my_scene import MyScene
 from scene.screenshot import ScreenShotScene
@@ -36,12 +35,10 @@ class MainScene(MyScene):
     def __init__(self):
         super().__init__(is_stationed=True)
 
-        self._is_visible = True
-
     def load_event(self):
         # title
         self.add_component(LabelComponent(self, "Main Menu", bold=True))
-        self.add_component(LabelComponent(self, "TAB to show/hide this menu"))
+        self.add_component(LabelComponent(self, "TAB to show or hide this UI"))
 
         self.add_component(SeparatorComponent(self))
 
@@ -89,7 +86,7 @@ class MainScene(MyScene):
             ButtonComponent(self, "Create Laser Parameter Profile", name="b-laser-param")
         )
         self.add_component(
-            ButtonComponent(self, "Create Laser Extraction Profile", name="b-laser-ext")
+            ButtonComponent(self, "Create Laser Detection Profile", name="b-laser-detection")
         )
         self.add_component(SpacerComponent(self))
         self.add_component(ButtonComponent(self, "Screenshot", name="b-save-image"))
@@ -132,8 +129,9 @@ class MainScene(MyScene):
         active_profile_names: ActiveProfileNames = repo.global_config.get().active_profile_names
         text = [
             f"Distortion: {active_profile_names.distortion_profile_name or '(NONE)'}",
-            f"Camera: {active_profile_names.camera_param_profile_name or '(NONE)'}",
-            f"Laser: {active_profile_names.laser_param_profile_name or '(NONE)'}",
+            f"Camera Param: {active_profile_names.camera_param_profile_name or '(NONE)'}",
+            f"Laser Param: {active_profile_names.laser_param_profile_name or '(NONE)'}",
+            f"Laser Detection: {active_profile_names.laser_detection_profile_name or '(NONE)'}",
         ]
         self.find_component(LabelComponent, "l-profile").set_text("\n".join(text))
 
@@ -146,19 +144,8 @@ class MainScene(MyScene):
                 text.append(f"Captured frames on queue {last_recording_queue_count:3d}")
         self.find_component(LabelComponent, "l-record").set_text("\n".join(text))
 
-    def render_ui(self, ctx: UIRenderingContext) -> UIRenderingContext:
-        if not self._is_visible:
-            return ctx
-        return super().render_ui(ctx)
-
     def key_event(self, event: KeyEvent) -> bool:
-        if super().key_event(event):
-            return True
-        if event.down:
-            if event.key == Key.TAB:
-                self._is_visible = not self._is_visible
-                return True
-        return False
+        return super().key_event(event)
 
     def _show_select_profile_dialog(self, profile_type: str) -> None:
         def callback(name: str | None) -> None:
@@ -323,7 +310,6 @@ class MainScene(MyScene):
                 )
                 return
             if sender.get_name() == "b-laser-param":
-                # Implement laser parameter scene
                 name = repo.global_config.get().active_profile_names.camera_param_profile_name
                 if name is None:
                     get_app().make_toast(
@@ -356,9 +342,26 @@ class MainScene(MyScene):
                     )
                 )
                 return
-            if sender.get_name() == "b-laser-ext":
-                # Implement laser extraction scene
-                pass
+            if sender.get_name() == "b-laser-detection":
+                def callback(item: str | None) -> None:
+                    get_app().close_dialog()
+                    if item is not None:
+                        image = repo.image.get(item)
+                        get_app().move_to(
+                            LaserDetectionScene(
+                                image=image,
+                            )
+                        )
+
+                get_app().show_dialog(
+                    SelectImageItemDialog(
+                        title="Select Image for Laser Calibration",
+                        items=repo.image.list_names(),
+                        callback=callback,
+                        image_getter=lambda name: repo.image.get(name).data,
+                    )
+                )
+                return
             if sender.get_name() == "b-save-image":
                 get_app().move_to(ScreenShotScene())
                 pass

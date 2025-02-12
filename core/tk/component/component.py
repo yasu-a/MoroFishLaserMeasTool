@@ -8,7 +8,7 @@ from core.tk.scene import Scene
 class Component(ABC):
     def __init__(self, scene: Scene, *, name: str = None):
         self.__scene = scene
-        self.__name = name
+        self.__name = name  # ComponentCollection requires name is immutable
 
     def get_scene(self) -> Scene:
         return self.__scene
