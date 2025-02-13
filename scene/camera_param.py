@@ -44,7 +44,7 @@ class InputPoints:
         self._camera_param = None
         self._camera_param_modification_count = None
 
-    def get_camera_mat(self) -> np.ndarray | None:
+    def get_camera_mat(self) -> np.ndarray | None:  # TODO: 廃止
         if self._camera_param is None \
                 or self._camera_param_modification_count != self._modification_count:
             if self.get_input_point_count() <= 1:
@@ -66,6 +66,14 @@ class InputPoints:
                 f"{pd.DataFrame(points).round(0)!s}"
             )
         return self._camera_param
+
+    def get_camera_param(self) -> CameraParam | None:
+        mat = self.get_camera_mat()
+        if mat is None:
+            return None
+        return CameraParam(
+            mat=mat,
+        )
 
     def _update_kdtree(self):
         available_points_2d = [
@@ -185,6 +193,8 @@ class CameraParamScene(MyScene):
             dot_snap_points=dot_snap_computer.compute_snap_positions().tolist(),
         )
 
+        self._active_plane_index: int | None = None
+
     def load_event(self):
         self.add_component(LabelComponent(self, "Camera Parameter", bold=True))
         self.add_component(SeparatorComponent(self))
@@ -232,11 +242,17 @@ class CameraParamScene(MyScene):
                 if self._input_points.is_marked(i):
                     p_highlighted[i] = 0, 200, 0
             p_highlighted[self.get_active_point_index()] = 0, 0, 255
+
+            plane_colors = {}
+            if self._active_plane_index is not None:
+                plane_colors[self._active_plane_index] = 255, 0, 0
+
             self.set_picture_in_picture(
                 self._calib_model.render_3d(
                     width=500,
                     height=500,
                     point_colors=p_highlighted,
+                    plane_colors=plane_colors,
                 ),
                 500,
             )
@@ -265,15 +281,42 @@ class CameraParamScene(MyScene):
 
             # カメラパラメータ行列が張る空間の格子線の描画
             size = self._calib_model.get_size()
-            for v in np.arange(0, size + 1e-6, 20):
-                p1, p2 = np.array([v, 0, 0]), np.array([v, size, 0])
-                for i in range(3):
-                    cv2.line(canvas, _proj(p1), _proj(p2), (200, 50, 0), 1, cv2.LINE_AA)
-                    p1, p2 = np.roll(p1, 1), np.roll(p2, 1)
-                p1, p2 = np.array([0, v, 0]), np.array([size, v, 0])
-                for i in range(3):
-                    cv2.line(canvas, _proj(p1), _proj(p2), (200, 50, 0), 1, cv2.LINE_AA)
-                    p1, p2 = np.roll(p1, 1), np.roll(p2, 1)
+            if self._active_plane_index is None:
+                for v in np.arange(0, size + 1e-6, 20):
+                    p1, p2 = np.array([v, 0, 0]), np.array([v, size, 0])
+                    for i in range(3):
+                        cv2.line(canvas, _proj(p1), _proj(p2), (200, 50, 0), 1, cv2.LINE_AA)
+                        p1, p2 = np.roll(p1, 1), np.roll(p2, 1)
+                    p1, p2 = np.array([0, v, 0]), np.array([size, v, 0])
+                    for i in range(3):
+                        cv2.line(canvas, _proj(p1), _proj(p2), (200, 50, 0), 1, cv2.LINE_AA)
+                        p1, p2 = np.roll(p1, 1), np.roll(p2, 1)
+            else:
+                active_plane_corners = self._calib_model.get_plane_corners(self._active_plane_index)
+                # x plane
+                x = active_plane_corners[0, 0]
+                if np.all(x == active_plane_corners[1:, 0]):
+                    for v in np.arange(0, size + 1e-6, 20):
+                        p1, p2 = np.array([x, v, 0]), np.array([x, v, size])
+                        cv2.line(canvas, _proj(p1), _proj(p2), (200, 50, 0), 1, cv2.LINE_AA)
+                        p1, p2 = np.array([x, 0, v]), np.array([x, size, v])
+                        cv2.line(canvas, _proj(p1), _proj(p2), (200, 50, 0), 1, cv2.LINE_AA)
+                # y plane
+                y = active_plane_corners[0, 1]
+                if np.all(y == active_plane_corners[1:, 1]):
+                    for v in np.arange(0, size + 1e-6, 20):
+                        p1, p2 = np.array([v, y, 0]), np.array([v, y, size])
+                        cv2.line(canvas, _proj(p1), _proj(p2), (200, 50, 0), 1, cv2.LINE_AA)
+                        p1, p2 = np.array([0, y, v]), np.array([size, y, v])
+                        cv2.line(canvas, _proj(p1), _proj(p2), (200, 50, 0), 1, cv2.LINE_AA)
+                # z plane
+                z = active_plane_corners[0, 2]
+                if np.all(z == active_plane_corners[1:, 2]):
+                    for v in np.arange(0, size + 1e-6, 20):
+                        p1, p2 = np.array([v, 0, z]), np.array([v, size, z])
+                        cv2.line(canvas, _proj(p1), _proj(p2), (200, 50, 0), 1, cv2.LINE_AA)
+                        p1, p2 = np.array([0, v, z]), np.array([size, v, z])
+                        cv2.line(canvas, _proj(p1), _proj(p2), (200, 50, 0), 1, cv2.LINE_AA)
 
             # 点予測
             p2d = _proj(self._calib_model.get_world_point(self.get_active_point_index()))
@@ -377,6 +420,20 @@ class CameraParamScene(MyScene):
                 self._cursor_pos = (event.x, event.y)
             return True
         if event.left_down:
+            # Picture-in-pictureをクリックしていたらクリックした面を記録する
+            pos_pip = self.translate_onto_picture_in_picture(event.x, event.y)
+            if pos_pip is not None:
+                clicked_plane_index = self._calib_model.get_plane_at(
+                    int(pos_pip[0]),
+                    int(pos_pip[1]),
+                )
+                if self._active_plane_index == clicked_plane_index:
+                    self._active_plane_index = None
+                else:
+                    self._active_plane_index = clicked_plane_index
+                return True
+
+            # 点を追加する
             p2d = self._cursor_pos
             self._input_points.add_point(self.get_active_point_index(), p2d)
             self.move_onto_next_point()

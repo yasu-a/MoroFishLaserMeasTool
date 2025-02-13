@@ -251,12 +251,12 @@ class DistortionCorrectionScene(MyScene):
         )
 
     def key_event(self, event: KeyEvent) -> bool:
-        if super().key_event(event):
-            return True
         if event.down:
             if event.key == Key.SPACE:
                 self.toggle_detection_enabled()
                 return True
+        if super().key_event(event):
+            return True
         return False
 
     def _on_button_triggered(self, sender: Component) -> None:
@@ -272,6 +272,7 @@ class DistortionCorrectionScene(MyScene):
                         )
                     )
                 return
+
             if sender.get_name() == "b-back":
                 if self._points.get_sample_count() == 0:
                     get_app().move_back()
@@ -292,6 +293,7 @@ class DistortionCorrectionScene(MyScene):
                         )
                     )
                     return
+
             if sender.get_name() == "b-calc-param-and-save":
                 app = cast(MyApplication, get_app())
                 if app.camera_info is None:
@@ -369,7 +371,7 @@ class DistortionCorrectionScene(MyScene):
                             callback=callback,
                         )
                     )
-                return
+
             if sender.get_name() == "b-discard":
                 if self._points.get_sample_count() == 0:
                     get_app().make_toast(

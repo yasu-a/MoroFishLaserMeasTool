@@ -27,7 +27,7 @@ from model.laser_param import LaserParamProfile
 from my_app import MyApplication
 from repo import open_in_explorer
 from scene.camera_param import CameraParamScene
-from scene.distortion_correction import DistortionCorrectionScene
+from scene.distortion import DistortionCorrectionScene
 from scene.global_config import GlobalConfigScene
 from scene.laser_detection import LaserDetectionScene
 from scene.laser_param import LaserParamScene

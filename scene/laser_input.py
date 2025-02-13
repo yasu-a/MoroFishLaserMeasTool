@@ -87,6 +87,12 @@ class InputLaserLines:
         self._laser_param: LaserParam | None = None
         self._laser_param_modification_count = None
 
+    def clear(self) -> None:
+        self._lines.clear()
+        self._modification_count = 0
+        self._laser_param = None
+        self._laser_param_modification_count = None
+
     def query_nearest_line(self, x: int, y: int, r: int) -> int | None:  # index
         min_distance = r
         nearest_index = None

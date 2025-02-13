@@ -71,6 +71,7 @@ class CameraCalibModel:
         )
 
     def get_size(self) -> float:
+        # キャリブレーション模型の一辺の長さ
         return self._size
 
     def get_plane_at(self, x, y) -> int | None:

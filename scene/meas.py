@@ -9,6 +9,7 @@ from core.tk.component.button import ButtonComponent
 from core.tk.component.component import Component
 from core.tk.component.label import LabelComponent
 from core.tk.component.separator import SeparatorComponent
+from core.tk.component.spacer import SpacerComponent
 from core.tk.component.spin_box import SpinBoxComponent
 from core.tk.event import KeyEvent
 from core.tk.global_state import get_app
@@ -51,6 +52,92 @@ class MeasScene(MyScene):
         mask[y1:y2, x1:x2] = mask_roi
         return im, mask
 
+    def load_event(self):
+        self.add_component(LabelComponent(self, "Meas", bold=True))
+        self.add_component(SeparatorComponent(self))
+        im = self._get_last_image()
+        self.add_component(LabelComponent(self, "ROI X Min"))
+        self.add_component(
+            SpinBoxComponent(
+                self,
+                value=0,
+                min_value=0,
+                max_value=im.shape[1],
+                step=20,
+                name="sp-roi-x-min",
+            )
+        )
+        self.add_component(LabelComponent(self, "ROI X Max"))
+        self.add_component(
+            SpinBoxComponent(
+                self,
+                value=im.shape[1],
+                min_value=0,
+                max_value=im.shape[1],
+                step=20,
+                name="sp-roi-x-max",
+            )
+        )
+        self.add_component(LabelComponent(self, "ROI Y Min"))
+        self.add_component(
+            SpinBoxComponent(
+                self,
+                value=0,
+                min_value=0,
+                max_value=im.shape[0],
+                step=20,
+                name="sp-roi-y-min",
+            )
+        )
+        self.add_component(LabelComponent(self, "ROI Y Max"))
+        self.add_component(
+            SpinBoxComponent(
+                self,
+                value=im.shape[0],
+                min_value=0,
+                max_value=im.shape[0],
+                step=20,
+                name="sp-roi-y-max",
+            )
+        )
+        self.add_component(SpacerComponent(self))
+        self.add_component(LabelComponent(self, "Z Min"))
+        self.add_component(
+            SpinBoxComponent(
+                self,
+                value=-50,
+                min_value=-300,
+                max_value=300,
+                step=5,
+                name="sp-z-min",
+            )
+        )
+        self.add_component(LabelComponent(self, "Z Max"))
+        self.add_component(
+            SpinBoxComponent(
+                self,
+                value=150,
+                min_value=-300,
+                max_value=300,
+                step=5,
+                name="sp-z-max",
+            )
+        )
+        self.add_component(SeparatorComponent(self))
+        self.add_component(ButtonComponent(self, "Back", name="b-back"))
+
+    def _get_roi(self) -> tuple[int, int, int, int]:  # x1, y1, x2, y2
+        roi_x_min = self.find_component(SpinBoxComponent, "sp-roi-x-min").get_value()
+        roi_x_max = self.find_component(SpinBoxComponent, "sp-roi-x-max").get_value()
+        roi_y_min = self.find_component(SpinBoxComponent, "sp-roi-y-min").get_value()
+        roi_y_max = self.find_component(SpinBoxComponent, "sp-roi-y-max").get_value()
+        return roi_x_min, roi_y_min, roi_x_max, roi_y_max
+
+    def _get_z_range(self) -> tuple[float, float]:  # z-min, z-max
+        z_min = self.find_component(SpinBoxComponent, "sp-z-min").get_value()
+        z_max = self.find_component(SpinBoxComponent, "sp-z-max").get_value()
+        return z_min, z_max
+
     def create_background(self, window_size: ApplicationWindowSize) -> np.ndarray | None:
         im, mask = self._get_image_and_mask()
 
@@ -88,9 +175,13 @@ class MeasScene(MyScene):
                 *self._laser_param_profile.param.vec[:3],
             )
 
+        z_min, z_max = self._get_z_range()
         for y in range(10, im.shape[0] - 10, 30):
             x_laser = self._laser_x_on_vertical_smooth[y]
             if np.isnan(x_laser):
+                continue
+            p3d = get_p3d(y)
+            if not (z_min <= p3d[2] <= z_max):
                 continue
 
             # 水平線
@@ -103,7 +194,6 @@ class MeasScene(MyScene):
                 cv2.LINE_AA,
             )
 
-            p3d = get_p3d(y)
             x_laser = int(x_laser)
 
             # 目盛り
@@ -185,64 +275,6 @@ class MeasScene(MyScene):
         self.set_picture_in_picture(im_real, width=400)
 
         return window_size.coerce(im)
-
-    def load_event(self):
-        self.add_component(LabelComponent(self, "Meas", bold=True))
-        self.add_component(SeparatorComponent(self))
-        im = self._get_last_image()
-        self.add_component(LabelComponent(self, "ROI X Min"))
-        self.add_component(
-            SpinBoxComponent(
-                self,
-                value=0,
-                min_value=0,
-                max_value=im.shape[1],
-                step=10,
-                name="sp-roi-x-min",
-            )
-        )
-        self.add_component(LabelComponent(self, "ROI X Max"))
-        self.add_component(
-            SpinBoxComponent(
-                self,
-                value=im.shape[1],
-                min_value=0,
-                max_value=im.shape[1],
-                step=10,
-                name="sp-roi-x-max",
-            )
-        )
-        self.add_component(LabelComponent(self, "ROI Y Min"))
-        self.add_component(
-            SpinBoxComponent(
-                self,
-                value=0,
-                min_value=0,
-                max_value=im.shape[0],
-                step=10,
-                name="sp-roi-y-min",
-            )
-        )
-        self.add_component(LabelComponent(self, "ROI Y Max"))
-        self.add_component(
-            SpinBoxComponent(
-                self,
-                value=im.shape[0],
-                min_value=0,
-                max_value=im.shape[0],
-                step=10,
-                name="sp-roi-y-max",
-            )
-        )
-        self.add_component(SeparatorComponent(self))
-        self.add_component(ButtonComponent(self, "Back", name="b-back"))
-
-    def _get_roi(self) -> tuple[int, int, int, int]:  # x1, y1, x2, y2
-        roi_x_min = self.find_component(SpinBoxComponent, "sp-roi-x-min").get_value()
-        roi_x_max = self.find_component(SpinBoxComponent, "sp-roi-x-max").get_value()
-        roi_y_min = self.find_component(SpinBoxComponent, "sp-roi-y-min").get_value()
-        roi_y_max = self.find_component(SpinBoxComponent, "sp-roi-y-max").get_value()
-        return roi_x_min, roi_y_min, roi_x_max, roi_y_max
 
     def key_event(self, event: KeyEvent) -> bool:
         if event.down:

@@ -117,6 +117,7 @@ class LaserDetectionScene(LaserInputScene):
 
         self.add_component(LabelComponent(self, "", name="l-model"))
         self.add_component(ButtonComponent(self, "Save", name="b-save"))
+        self.add_component(ButtonComponent(self, "Clear", name="b-clear"))
 
         self.add_component(SpacerComponent(self))
 
@@ -131,8 +132,14 @@ class LaserDetectionScene(LaserInputScene):
     def _get_morph_open_size(self) -> int:
         return self.find_component(SpinBoxComponent, "sb-morph-open").get_value()
 
+    def _set_morph_open_size(self, value: int) -> None:
+        self.find_component(SpinBoxComponent, "sb-morph-open").set_value(value)
+
     def _get_morph_close_size(self) -> int:
         return self.find_component(SpinBoxComponent, "sb-morph-close").get_value()
+
+    def _set_morph_close_size(self, value: int) -> None:
+        self.find_component(SpinBoxComponent, "sb-morph-close").set_value(value)
 
     def _get_hsv_min(self) -> tuple[int, int, int]:
         return (
@@ -141,6 +148,11 @@ class LaserDetectionScene(LaserInputScene):
             self.find_component(SpinBoxComponent, f"sb-v-min").get_value(),
         )
 
+    def _set_hsv_min(self, hsv: tuple[int, int, int]) -> None:
+        self.find_component(SpinBoxComponent, f"sb-h-min").set_value(hsv[0])
+        self.find_component(SpinBoxComponent, f"sb-s-min").set_value(hsv[1])
+        self.find_component(SpinBoxComponent, f"sb-v-min").set_value(hsv[2])
+
     def _get_hsv_max(self) -> tuple[int, int, int]:
         return (
             self.find_component(SpinBoxComponent, f"sb-h-max").get_value(),
@@ -148,15 +160,16 @@ class LaserDetectionScene(LaserInputScene):
             self.find_component(SpinBoxComponent, f"sb-v-max").get_value(),
         )
 
-    def _set_hsv_min(self, hsv: tuple[int, int, int]) -> None:
-        self.find_component(SpinBoxComponent, f"sb-h-min").set_value(hsv[0])
-        self.find_component(SpinBoxComponent, f"sb-s-min").set_value(hsv[1])
-        self.find_component(SpinBoxComponent, f"sb-v-min").set_value(hsv[2])
-
     def _set_hsv_max(self, hsv: tuple[int, int, int]) -> None:
         self.find_component(SpinBoxComponent, f"sb-h-max").set_value(hsv[0])
         self.find_component(SpinBoxComponent, f"sb-s-max").set_value(hsv[1])
         self.find_component(SpinBoxComponent, f"sb-v-max").set_value(hsv[2])
+
+    def _clear_model(self) -> None:
+        self._set_hsv_min((0, 0, 0))
+        self._set_hsv_max((0, 0, 0))
+        self._set_morph_open_size(1)
+        self._set_morph_close_size(1)
 
     def update(self):
         info_label = self.find_component(LabelComponent, "l-info")
@@ -286,6 +299,24 @@ class LaserDetectionScene(LaserInputScene):
                 )
             )
             return
+
+        if sender.get_name() == "b-clear":
+            def callback(button_name: str | None) -> None:
+                get_app().close_dialog()
+                if button_name == "Yes":
+                    self._input_lines.clear()
+                    self._clear_model()
+
+            get_app().show_dialog(
+                MessageDialog(
+                    is_error=True,
+                    message="Are you sure you want to clear the detections?",
+                    buttons=("No", "Yes"),
+                    callback=callback,
+                )
+            )
+            return
+
         if sender.get_name() == "b-back":
             def callback(button_name: str | None) -> None:
                 get_app().close_dialog()
