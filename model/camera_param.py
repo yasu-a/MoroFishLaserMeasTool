@@ -23,6 +23,10 @@ class CameraParam:
         x, y, z = np.linalg.inv(M) @ const
         return x, y, z
 
+    def conversion_factor(self, z: int) -> tuple[int, int]:
+        (a_11, a_12, a_13, a_14), (a_21, a_22, a_23, a_24), (a_31, a_32, a_33, a_34) = self.mat
+        return (a_33 / a_11) * z + (1 / a_11), z * (a_33 / a_22) * z + (1 / a_22)
+
     def __post_init__(self):
         assert isinstance(self.mat, np.ndarray), "mat should be a numpy array"
         assert self.mat.ndim == 2, "mat should be 2D"

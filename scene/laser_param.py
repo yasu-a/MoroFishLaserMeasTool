@@ -155,7 +155,7 @@ class LaserParamScene(LaserInputScene):
         self.find_component(LabelComponent, "l-param").set_text(
             "\n".join([
                 " ".join(f"{col:+9.5f}" for col in vec),
-                f"Error: {error}",
+                f"Error: {error:10.7f}",
             ])
         )
 

@@ -4,6 +4,7 @@ import time
 
 import cv2
 
+import repo.distortion
 import repo.global_config
 from app_logging import create_logger
 from camera_server import CameraServer, CaptureResult, CameraInfo, \
@@ -12,6 +13,7 @@ from core.tk.app import Application
 from core.tk.event import KeyEvent
 from core.tk.key import Key
 from fps_counter import FPSCounter
+from model.distortion import DistortionProfile
 from record_server import RecordServer
 
 
@@ -54,9 +56,13 @@ class MyApplication(Application):
         self._camera_config_observer = _CameraConfigObserver()
 
         self.last_capture: CaptureResult | None = None
+        self.last_capture_undistort: CaptureResult | None = None
         self.fps_counter = FPSCounter()
         self.is_recording: bool = False
         self.last_recording_queue_count: int | None = None
+
+        self._distortion_profile: DistortionProfile | None = None
+        self._last_time_distortion_profile_get = None
 
     def key_event(self, event: KeyEvent) -> bool:
         if super().key_event(event):
@@ -105,6 +111,18 @@ class MyApplication(Application):
     def _is_camera_config_modified(self) -> bool:
         return self._camera_config_observer.is_modified()
 
+    def get_distortion_profile(self) -> DistortionProfile:
+        now = time.monotonic()
+        if self._last_time_distortion_profile_get is None \
+                or now - self._last_time_distortion_profile_get >= 1:  # TODO: efficient file system observation
+            self._last_time_distortion_profile_get = now
+            name = repo.global_config.get().active_profile_names.distortion_profile_name
+            try:
+                self._distortion_profile = repo.distortion.get(name)
+            except FileNotFoundError:
+                self._distortion_profile = None
+        return self._distortion_profile
+
     def loop(self):
         cv2.namedWindow("win")
         self._mouse_handler.register_callback("win")
@@ -128,10 +146,20 @@ class MyApplication(Application):
 
             if capture_results:
                 self.last_capture = capture_results[-1]
+
+                distortion_profile = self.get_distortion_profile()
+                if distortion_profile is None:
+                    self.last_capture_undistort = None
+                else:
+                    self.last_capture_undistort = CaptureResult(
+                        frame=distortion_profile.params.undistort(self.last_capture.frame),
+                        timestamp=self.last_capture.timestamp,
+                    )
             elif self.last_capture is not None and self.last_capture.timestamp > time.time() - 1:
                 pass
             else:
                 self.last_capture = None
+                self.last_capture_undistort = None
 
             if self.is_recording:
                 self.last_recording_queue_count = self.record_server.get_queue_count()

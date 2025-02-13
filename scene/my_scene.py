@@ -18,11 +18,22 @@ class MyScene(Scene):
         self._is_visible = True
 
     def create_background(self, window_size: "ApplicationWindowSize") -> np.ndarray | None:
-        last_capture: CaptureResult | None = cast(MyApplication, get_app()).last_capture
-        if last_capture is None:
+        app: MyApplication = cast(MyApplication, get_app())
+        im = None
+
+        last_capture_undistort: CaptureResult | None = app.last_capture_undistort
+        if last_capture_undistort is not None:
+            im = last_capture_undistort.frame
+
+        if im is None:
+            last_capture: CaptureResult | None = app.last_capture
+            if last_capture is not None:
+                im = last_capture.frame
+
+        if im is None:
             return None
         else:
-            return window_size.coerce(last_capture.frame.copy())
+            return window_size.coerce(im.copy())
 
     def render_ui(self, ctx: UIRenderingContext) -> UIRenderingContext:
         if not self._is_visible:

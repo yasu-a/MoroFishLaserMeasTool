@@ -146,13 +146,16 @@ class Scene(SceneEventHandlers, ABC):
         self._components.add(component)
 
     def find_component(self, component_type: type[C], name: str) -> C:
-        for c in self._components:
-            if not isinstance(c, component_type):
-                continue
-            if c.get_name() == name:
-                return c
-        raise ValueError(f"No component {component_type} {name} found",
-                         [(type(c), c.get_name()) for c in self._components])
+        # for c in self._components:
+        #     if not isinstance(c, component_type):
+        #         continue
+        #     if c.get_name() == name:
+        #         return c
+        # raise ValueError(f"No component {component_type} {name} found",
+        #                  [(type(c), c.get_name()) for c in self._components])
+        c = self._components.find_by_name(name)
+        assert isinstance(c, component_type), (name, component_type)
+        return c
 
     def get_total_focus_count(self):
         return sum(c.focus_count() for c in self._components)

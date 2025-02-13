@@ -1,10 +1,12 @@
 from dataclasses import dataclass
+from functools import cached_property
 
-import cv2
 import numpy as np
 
+from util.distortion import DistortionCorrector
 
-@dataclass(slots=True)
+
+@dataclass
 class DistortionParameters:
     ret: float
     mtx: np.ndarray
@@ -12,13 +14,20 @@ class DistortionParameters:
     rvecs: tuple[np.ndarray]
     tvecs: tuple[np.ndarray]
 
-    def undistort(self, im: np.ndarray):  # TODO: move to service
-        h, w = im.shape[:2]
-        new_mtx, roi = cv2.getOptimalNewCameraMatrix(
-            self.mtx, self.dist, (w, h), 1, (w, h)
+    @cached_property
+    def _corrector(self) -> DistortionCorrector:
+        c = DistortionCorrector()
+        c.set_new_param(
+            ret=self.ret,
+            mtx=self.mtx,
+            dist=self.dist,
+            rvecs=self.rvecs,
+            tvecs=self.tvecs,
         )
-        im_undistort = cv2.undistort(im, self.mtx, self.dist, None, new_mtx)
-        return im_undistort
+        return c
+
+    def undistort(self, im: np.ndarray):  # TODO: move to service
+        return self._corrector.undistort(im)
 
 
 @dataclass(slots=True)

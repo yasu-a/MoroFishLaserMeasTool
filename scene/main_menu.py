@@ -20,6 +20,10 @@ from core.tk.event import KeyEvent
 from core.tk.global_state import get_app
 from fps_counter import FPSCounterStat
 from model.active_profile_names import ActiveProfileNames
+from model.camera_param import CameraParamProfile
+from model.distortion import DistortionProfile
+from model.laser_detection import LaserDetectionProfile
+from model.laser_param import LaserParamProfile
 from my_app import MyApplication
 from repo import open_in_explorer
 from scene.camera_param import CameraParamScene
@@ -27,6 +31,7 @@ from scene.distortion_correction import DistortionCorrectionScene
 from scene.global_config import GlobalConfigScene
 from scene.laser_detection import LaserDetectionScene
 from scene.laser_param import LaserParamScene
+from scene.meas import MeasScene
 from scene.my_scene import MyScene
 from scene.screenshot import ScreenShotScene
 
@@ -90,6 +95,7 @@ class MainScene(MyScene):
         )
         self.add_component(SpacerComponent(self))
         self.add_component(ButtonComponent(self, "Screenshot", name="b-save-image"))
+        self.add_component(ButtonComponent(self, "Measurement", name="b-meas"))
         self.add_component(SpacerComponent(self))
         self.add_component(
             ButtonComponent(self, "Open Data Folder in Explorer", name="b-open-data-folder")
@@ -278,6 +284,50 @@ class MainScene(MyScene):
             )
         )
 
+    @classmethod
+    def get_distortion_profile(cls) -> DistortionProfile:
+        # TODO: move to MyApplication and replace similar procedures
+        name = repo.global_config.get().active_profile_names.distortion_profile_name
+        if name is None:
+            raise ValueError("Distortion profile is not selected")
+        try:
+            return repo.distortion.get(name)
+        except FileNotFoundError:
+            raise ValueError(f"Distortion profile '{name}' not found")
+
+    @classmethod
+    def get_camera_param_profile(cls) -> CameraParamProfile:
+        # TODO: move to MyApplication and replace similar procedures
+        name = repo.global_config.get().active_profile_names.camera_param_profile_name
+        if name is None:
+            raise ValueError("Camera parameter profile is not selected")
+        try:
+            return repo.camera_param.get(name)
+        except FileNotFoundError:
+            raise ValueError(f"Camera parameter profile '{name}' not found")
+
+    @classmethod
+    def get_laser_param_profile(cls) -> LaserParamProfile:
+        # TODO: move to MyApplication and replace similar procedures
+        name = repo.global_config.get().active_profile_names.laser_param_profile_name
+        if name is None:
+            raise ValueError("Laser parameter profile is not selected")
+        try:
+            return repo.laser_param.get(name)
+        except FileNotFoundError:
+            raise ValueError(f"Laser parameter profile '{name}' not found")
+
+    @classmethod
+    def get_laser_detection_profile(cls) -> LaserDetectionProfile:
+        # TODO: move to MyApplication and replace similar procedures
+        name = repo.global_config.get().active_profile_names.laser_detection_profile_name
+        if name is None:
+            raise ValueError("Laser detection profile is not selected")
+        try:
+            return repo.laser_detection.get(name)
+        except FileNotFoundError:
+            raise ValueError(f"Laser detection profile '{name}' not found")
+
     def _on_button_triggered(self, sender: Component) -> None:
         if isinstance(sender, ButtonComponent):
             if sender.get_name() == "b-global-config":
@@ -310,38 +360,38 @@ class MainScene(MyScene):
                 )
                 return
             if sender.get_name() == "b-laser-param":
-                name = repo.global_config.get().active_profile_names.camera_param_profile_name
-                if name is None:
+                try:
+                    camera_param_profile = self.get_camera_param_profile()
+                except ValueError as e:
                     get_app().make_toast(
                         Toast(
                             self,
                             "error",
-                            "Camera Parameter Profile is not selected",
+                            e.args[0],
                         )
                     )
                     return
-                camera_param_profile = repo.camera_param.get(name)
-
-                def callback(item: str | None) -> None:
-                    get_app().close_dialog()
-                    if item is not None:
-                        image = repo.image.get(item)
-                        get_app().move_to(
-                            LaserParamScene(
-                                image=image,
-                                camera_param_profile=camera_param_profile,
+                else:
+                    def callback(item: str | None) -> None:
+                        get_app().close_dialog()
+                        if item is not None:
+                            image = repo.image.get(item)
+                            get_app().move_to(
+                                LaserParamScene(
+                                    image=image,
+                                    camera_param_profile=camera_param_profile,
+                                )
                             )
-                        )
 
-                get_app().show_dialog(
-                    SelectImageItemDialog(
-                        title="Select Image for Laser Calibration",
-                        items=repo.image.list_names(),
-                        callback=callback,
-                        image_getter=lambda name: repo.image.get(name).data,
+                    get_app().show_dialog(
+                        SelectImageItemDialog(
+                            title="Select Image for Laser Calibration",
+                            items=repo.image.list_names(),
+                            callback=callback,
+                            image_getter=lambda name: repo.image.get(name).data,
+                        )
                     )
-                )
-                return
+                    return
             if sender.get_name() == "b-laser-detection":
                 def callback(item: str | None) -> None:
                     get_app().close_dialog()
@@ -364,10 +414,35 @@ class MainScene(MyScene):
                 return
             if sender.get_name() == "b-save-image":
                 get_app().move_to(ScreenShotScene())
-                pass
+                return
+            if sender.get_name() == "b-meas":
+                try:
+                    distortion_profile = self.get_distortion_profile()
+                    camera_param_profile = self.get_camera_param_profile()
+                    laser_param_profile = self.get_laser_param_profile()
+                    laser_detection_profile = self.get_laser_detection_profile()
+                except ValueError as e:
+                    get_app().make_toast(
+                        Toast(
+                            self,
+                            "error",
+                            e.args[0],
+                        )
+                    )
+                    return
+                else:
+                    get_app().move_to(
+                        MeasScene(
+                            distortion_profile=distortion_profile,
+                            camera_param_profile=camera_param_profile,
+                            laser_param_profile=laser_param_profile,
+                            laser_detection_profile=laser_detection_profile,
+                        )
+                    )
+                return
             if sender.get_name() == "b-open-data-folder":
                 open_in_explorer()
-                pass
+                return
             if sender.get_name() == "b-exit":
                 def callback(button_name: str):
                     if button_name == "QUIT":

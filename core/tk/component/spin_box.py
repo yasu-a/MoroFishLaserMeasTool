@@ -13,11 +13,13 @@ class SpinBoxComponent(Component):
             *,
             min_value: int,
             max_value: int,
+            step: int = 1,
             name: str = None,
     ):
         super().__init__(scene, name=name)
         self._min_value = min_value
         self._max_value = max_value
+        self._step = step
         self._value = max(self._min_value, min(self._max_value, value))
 
     def get_value(self) -> int:
@@ -30,7 +32,7 @@ class SpinBoxComponent(Component):
             self.get_scene().notify_listener("value-changed", self)
 
     def increment_value(self, *, delta: int = 1) -> None:
-        self.set_value(self._value + delta)
+        self.set_value(self._value + delta * self._step)
 
     def decrement_value(self, *, delta: int = 1) -> None:
         self.increment_value(delta=-delta)
