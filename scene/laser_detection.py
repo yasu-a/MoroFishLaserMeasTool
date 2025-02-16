@@ -259,6 +259,8 @@ class LaserDetectionScene(LaserInputScene):
             def validator(name: str) -> str | None:
                 if name == "":
                     return "Please enter a file for this model"
+                if name.strip() != name:
+                    return "File name cannot contain leading or trailing spaces"
                 return None
 
             def already_exist_checker(name: str) -> bool:

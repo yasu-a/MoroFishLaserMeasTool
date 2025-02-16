@@ -6,12 +6,12 @@ import cv2
 
 import repo.distortion
 import repo.global_config
+import repo.video
 from app_logging import create_logger
 from camera_server import CameraServer, CaptureResult, CameraInfo, \
     UnavailableCameraInfo
 from core.tk.app import Application
 from core.tk.event import KeyEvent
-from core.tk.key import Key
 from fps_counter import FPSCounter
 from model.distortion import DistortionProfile
 from record_server import RecordServer
@@ -58,8 +58,8 @@ class MyApplication(Application):
         self.last_capture: CaptureResult | None = None
         self.last_capture_undistort: CaptureResult | None = None
         self.fps_counter = FPSCounter()
-        self.is_recording: bool = False
-        self.last_recording_queue_count: int | None = None
+        self._is_recording: bool = False
+        self.last_recording_queue_count: int = 0
 
         self._distortion_profile: DistortionProfile | None = None
         self._last_time_distortion_profile_get = None
@@ -67,22 +67,6 @@ class MyApplication(Application):
     def key_event(self, event: KeyEvent) -> bool:
         if super().key_event(event):
             return True
-
-        # FIXME: SCENEごとに管理
-        if event.down:
-            if event.key == Key.SPACE:
-                self.is_recording = not self.is_recording
-                if self.is_recording:
-                    self.record_server.request_record_begin(
-                        "./__out__.mp4",
-                        fps=self.camera_info.actual_spec.fps,
-                        width=self.camera_info.actual_spec.width,
-                        height=self.camera_info.actual_spec.height,
-                    )
-                else:
-                    self.record_server.request_record_end()
-                    print("Recording stopped")
-                return True
 
     def reflect_camera_config(self):
         global_config = repo.global_config.get()
@@ -111,7 +95,7 @@ class MyApplication(Application):
     def _is_camera_config_modified(self) -> bool:
         return self._camera_config_observer.is_modified()
 
-    def get_distortion_profile(self) -> DistortionProfile:
+    def get_distortion_profile(self) -> DistortionProfile | None:
         now = time.monotonic()
         if self._last_time_distortion_profile_get is None \
                 or now - self._last_time_distortion_profile_get >= 1:  # TODO: efficient file system observation
@@ -122,6 +106,37 @@ class MyApplication(Application):
             except FileNotFoundError:
                 self._distortion_profile = None
         return self._distortion_profile
+
+    def start_recording(self, distortion_profile: DistortionProfile | None) -> None:
+        assert not self._is_recording
+
+        if not self.camera_info.is_available:
+            raise ValueError("Failed to start recording: camera is not available")
+
+        self.record_server.request_record_begin(
+            str(repo.video.get_temp_video_path()),
+            fps=self.camera_info.actual_spec.fps,
+            width=self.camera_info.actual_spec.width,
+            height=self.camera_info.actual_spec.height,
+            distortion_profile=distortion_profile,
+        )
+
+        self._is_recording = True
+
+    def stop_recording(self) -> None:
+        assert self._is_recording
+
+        self.record_server.request_record_end()
+        self._is_recording = False
+
+    def is_recording(self) -> bool:
+        return self._is_recording
+
+    def is_recording_done(self) -> bool:
+        if self._is_recording:
+            return False
+        else:
+            return self.last_recording_queue_count == 0
 
     def loop(self):
         cv2.namedWindow("win")
@@ -138,7 +153,7 @@ class MyApplication(Application):
             capture_results = self.camera_server.get_all_frames()
             for capture_result in capture_results:
                 self.fps_counter.add(capture_result.timestamp)
-            if self.is_recording:
+            if self._is_recording:
                 self.record_server.put_frames([
                     capture_result.frame
                     for capture_result in capture_results
@@ -161,10 +176,7 @@ class MyApplication(Application):
                 self.last_capture = None
                 self.last_capture_undistort = None
 
-            if self.is_recording:
-                self.last_recording_queue_count = self.record_server.get_queue_count()
-            else:
-                self.last_recording_queue_count = None
+            self.last_recording_queue_count = self.record_server.get_queue_count()
 
             if self._check_signal("quit"):
                 break

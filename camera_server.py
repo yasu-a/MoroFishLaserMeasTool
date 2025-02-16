@@ -17,7 +17,7 @@ class CaptureResult:
     timestamp: float
 
 
-class VideoReader:
+class CameraReader:
     _logger = create_logger()
 
     def __init__(self, dev_id: int, video_spec: CameraSpec):
@@ -175,7 +175,7 @@ class CameraServer:
     def _worker(cls, q_in: Queue, q_out: Queue, q_frames: Queue) -> None:
         cls._logger.info("Worker started")
 
-        reader: VideoReader | None = None
+        reader: CameraReader | None = None
 
         while True:
             try:
@@ -195,7 +195,7 @@ class CameraServer:
                     dev_id, spec = data
                     assert isinstance(dev_id, int), f"Invalid dev_id: {dev_id}"
                     assert isinstance(spec, CameraSpec), f"Invalid video_spec: {spec}"
-                    reader = VideoReader(dev_id, spec)
+                    reader = CameraReader(dev_id, spec)
                 elif command_name == "close":
                     if reader is not None and reader.is_open():
                         reader.close()

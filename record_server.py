@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 
 from app_logging import create_logger
+from model.distortion import DistortionProfile
 
 
 class VideoWriter:
@@ -59,15 +60,17 @@ class RecordServer:
 
     def __init__(self):
         self._q_in = Queue()  # (command_name, data)
+        self._q_out = Queue()  # (command_name, data)
         self._q_frames = Queue()  # np.ndarray
-        self._p = Process(target=self._worker, args=(self._q_in, self._q_frames))
+        self._p = Process(target=self._worker, args=(self._q_in, self._q_out, self._q_frames))
         self._p.start()
 
     @classmethod
-    def _worker(cls, q_in: Queue, q_frames: Queue) -> None:
+    def _worker(cls, q_in: Queue, q_out: Queue, q_frames: Queue) -> None:
         cls._logger.info("Worker started")
 
         writer: VideoWriter | None = None
+        distortion_profile: DistortionProfile | None = None
 
         while True:
             try:
@@ -83,12 +86,21 @@ class RecordServer:
                 elif command_name == "record-begin":
                     if writer is not None and writer.is_open():
                         writer.close()
-                    video_path, fps, width, height = data
+                    video_path, fps, width, height, distortion_profile_in = data
                     assert isinstance(video_path, str), f"Invalid video_path: {video_path}"
                     assert isinstance(fps, (int, float)), f"Invalid fps: {fps}"
                     assert isinstance(width, int), f"Invalid width: {width}"
                     assert isinstance(height, int), f"Invalid height: {height}"
+                    assert isinstance(distortion_profile_in, DistortionProfile) or \
+                           distortion_profile_in is None, f"Invalid distortion_profile: {distortion_profile_in}"
+
                     writer = VideoWriter(video_path, fps, width, height)
+                    distortion_profile = distortion_profile_in
+                elif command_name == "check-recording-alive":
+                    if writer is not None and writer.is_open():
+                        q_out.put(("check-recording-alive", True))
+                    else:
+                        q_out.put(("check-recording-alive", False))
                 else:
                     assert False, f"Unknown command: {command_name}"
 
@@ -99,6 +111,8 @@ class RecordServer:
             else:
                 if isinstance(frame, np.ndarray):
                     if writer is not None and writer.is_open():
+                        if distortion_profile is not None:
+                            frame = distortion_profile.params.undistort(frame)
                         writer.write(frame)
                 elif frame == "record-end":
                     if writer is not None and writer.is_open():
@@ -112,8 +126,15 @@ class RecordServer:
     def request_stop(self) -> None:
         self._q_in.put(("stop", None))
 
-    def request_record_begin(self, video_path: str, fps: float, width: int, height: int) -> None:
-        self._q_in.put(("record-begin", (video_path, fps, width, height)))
+    def request_record_begin(
+            self,
+            video_path: str,
+            fps: float,
+            width: int,
+            height: int,
+            distortion_profile: DistortionProfile | None,
+    ) -> None:
+        self._q_in.put(("record-begin", (video_path, fps, width, height, distortion_profile)))
 
     def request_record_end(self) -> None:
         self._q_frames.put("record-end")

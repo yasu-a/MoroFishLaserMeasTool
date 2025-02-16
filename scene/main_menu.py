@@ -33,6 +33,7 @@ from scene.laser_detection import LaserDetectionScene
 from scene.laser_param import LaserParamScene
 from scene.meas import MeasScene
 from scene.my_scene import MyScene
+from scene.recording import RecordingScene
 from scene.screenshot import ScreenShotScene
 
 
@@ -96,6 +97,7 @@ class MainScene(MyScene):
         self.add_component(SpacerComponent(self))
         self.add_component(ButtonComponent(self, "Screenshot", name="b-save-image"))
         self.add_component(ButtonComponent(self, "Measurement", name="b-meas"))
+        self.add_component(ButtonComponent(self, "Recording", name="b-recording"))
         self.add_component(SpacerComponent(self))
         self.add_component(
             ButtonComponent(self, "Open Data Folder in Explorer", name="b-open-data-folder")
@@ -140,15 +142,6 @@ class MainScene(MyScene):
             f"Laser Detection: {active_profile_names.laser_detection_profile_name or '(NONE)'}",
         ]
         self.find_component(LabelComponent, "l-profile").set_text("\n".join(text))
-
-        is_recording: bool = app.is_recording
-        last_recording_queue_count = app.last_recording_queue_count
-        text = []
-        if is_recording:
-            text.append("RECORDING")
-            if last_recording_queue_count is not None:
-                text.append(f"Captured frames on queue {last_recording_queue_count:3d}")
-        self.find_component(LabelComponent, "l-record").set_text("\n".join(text))
 
     def key_event(self, event: KeyEvent) -> bool:
         return super().key_event(event)
@@ -439,6 +432,9 @@ class MainScene(MyScene):
                             laser_detection_profile=laser_detection_profile,
                         )
                     )
+                return
+            if sender.get_name() == "b-recording":
+                get_app().move_to(RecordingScene(distortion_profile=self.get_distortion_profile()))
                 return
             if sender.get_name() == "b-open-data-folder":
                 open_in_explorer()

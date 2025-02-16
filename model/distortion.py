@@ -15,7 +15,7 @@ class DistortionParameters:
     tvecs: tuple[np.ndarray]
 
     @cached_property
-    def _corrector(self) -> DistortionCorrector:
+    def _corrector(self) -> DistortionCorrector:  # FIXME: invalidate cache if fields are updated
         c = DistortionCorrector()
         c.set_new_param(
             ret=self.ret,
