@@ -8,6 +8,7 @@ import repo.global_config
 import repo.image
 import repo.laser_detection
 import repo.laser_param
+import repo.video
 from camera_server import CaptureResult, CameraInfo
 from core.tk.component.button import ButtonComponent
 from core.tk.component.component import Component
@@ -35,6 +36,7 @@ from scene.meas import MeasScene
 from scene.my_scene import MyScene
 from scene.recording import RecordingScene
 from scene.screenshot import ScreenShotScene
+from scene.stitch_scene import StitchingScene
 
 
 class MainScene(MyScene):
@@ -97,7 +99,9 @@ class MainScene(MyScene):
         self.add_component(SpacerComponent(self))
         self.add_component(ButtonComponent(self, "Screenshot", name="b-save-image"))
         self.add_component(ButtonComponent(self, "Measurement", name="b-meas"))
+        self.add_component(SpacerComponent(self))
         self.add_component(ButtonComponent(self, "Recording", name="b-recording"))
+        self.add_component(ButtonComponent(self, "Stitching", name="b-stitch"))
         self.add_component(SpacerComponent(self))
         self.add_component(
             ButtonComponent(self, "Open Data Folder in Explorer", name="b-open-data-folder")
@@ -434,8 +438,35 @@ class MainScene(MyScene):
                     )
                 return
             if sender.get_name() == "b-recording":
-                get_app().move_to(RecordingScene(distortion_profile=self.get_distortion_profile()))
+                get_app().move_to(
+                    RecordingScene(
+                        distortion_profile=self.get_distortion_profile(),
+                        roi_for_preview=repo.global_config.get().roi,
+                    )
+                )
                 return
+            if sender.get_name() == "b-stitching":
+                def callback(name: str | None) -> None:
+                    get_app().close_dialog()
+                    if name is None:
+                        return
+                    video = repo.video.get(name)
+                    get_app().move_to(
+                        StitchingScene(
+                            video=video,
+                            camera_param_profile=self.get_camera_param_profile(),
+                            laser_param_profile=self.get_laser_param_profile(),
+                            laser_detection_profile=self.get_laser_detection_profile(),
+                        )
+                    )
+
+                get_app().show_dialog(
+                    SelectItemDialog(
+                        title="Select Video for Stitching",
+                        items=repo.video.list_names(),
+                        callback=callback,
+                    )
+                )
             if sender.get_name() == "b-open-data-folder":
                 open_in_explorer()
                 return

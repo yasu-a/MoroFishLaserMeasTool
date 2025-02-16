@@ -2,12 +2,15 @@ import time
 from datetime import datetime
 from typing import cast
 
+import numpy as np
+
 import repo.distortion
 import repo.global_config
 import repo.image
 import repo.raw_image
 import repo.video
 from camera_server import CameraInfo, CaptureResult
+from core.tk.app import ApplicationWindowSize
 from core.tk.component.button import ButtonComponent
 from core.tk.component.component import Component
 from core.tk.component.label import LabelComponent
@@ -20,16 +23,20 @@ from core.tk.global_state import get_app
 from core.tk.key import Key
 from fps_counter import FPSCounterStat
 from model.distortion import DistortionProfile
+from model.global_config import ROI
 from my_app import MyApplication
 from scene.my_scene import MyScene
 from util import video_service
 
 
 class RecordingScene(MyScene):
-    def __init__(self, distortion_profile: DistortionProfile | None):
+    def __init__(self, distortion_profile: DistortionProfile | None,
+                 roi_for_preview: ROI | None = None):
         super().__init__()
         self._distortion_profile = distortion_profile
         self._is_recording_end_requested = False
+
+        self._roi_for_preview = roi_for_preview
 
     def load_event(self):
         self.add_component(LabelComponent(self, "Save Image", bold=True))
@@ -139,6 +146,15 @@ class RecordingScene(MyScene):
                 callback=callback,
             )
         )
+
+    def create_background(self, window_size: ApplicationWindowSize) -> np.ndarray | None:
+        im = super().create_background(window_size)
+        roi: ROI = self._roi_for_preview
+        im[:roi.screen_y_max, :roi.screen_x_min] //= 2
+        im[:roi.screen_y_min, roi.screen_x_min:] //= 2
+        im[roi.screen_y_min:, roi.screen_x_max:] //= 2
+        im[roi.screen_y_max:, :roi.screen_x_max] //= 2
+        return im
 
     def update(self):
         # 録画が完全に終了したら保存ダイアログを表示する

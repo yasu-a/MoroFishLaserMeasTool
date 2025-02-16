@@ -10,6 +10,7 @@ def get_laser_2d_and_3d_points(
         camera_param: CameraParam,
         laser_param: LaserParam,
         roi: ROI,
+        screen_offset: tuple[int, int] = None,  # u, v  画像がもともとROIで切り取られているときに使う
 ) -> tuple[np.ndarray, np.ndarray]:  # [[u, v], ...], [[x, y, z], ...]
     assert laser_mask.dtype == np.uint8 and laser_mask.ndim == 2, \
         (laser_mask.dtype, laser_mask.shape)
@@ -18,16 +19,24 @@ def get_laser_2d_and_3d_points(
     vs = np.arange(h)
 
     # レーザー重心
-    x_roi_flag = np.where(
-        roi.screen_x_predicate(us),
-        1,
-        0,
-    )
+    if screen_offset is None:
+        x_roi_flag = np.where(
+            roi.screen_x_predicate(us),
+            1,
+            0,
+        )
+    else:
+        x_roi_flag = np.array([1] * len(us))
     laser_u_on_vertical = (laser_mask * us[None, :] * x_roi_flag[None, :]).sum(
         axis=1) / laser_mask.sum(axis=1)  # nan if undetected
 
     us = laser_u_on_vertical[~np.isnan(laser_u_on_vertical)]
     vs = vs[~np.isnan(laser_u_on_vertical)]
+
+    if screen_offset is not None:
+        u_ofs, v_ofs = screen_offset
+        us += u_ofs
+        vs += v_ofs
 
     # 3D空間上の点を求める
     xs, ys, zs = [], [], []
