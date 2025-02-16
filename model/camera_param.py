@@ -23,7 +23,7 @@ class CameraParam:
         x, y, z = np.linalg.inv(M) @ const
         return x, y, z
 
-    def conversion_factor(self, z: int) -> tuple[int, int]:
+    def conversion_factor(self, u: float, v: float, z: float) -> tuple[float, float]:
         (a_11, a_12, a_13, a_14), (a_21, a_22, a_23, a_24), (a_31, a_32, a_33, a_34) = self.mat
         return (a_33 / a_11) * z + (1 / a_11), z * (a_33 / a_22) * z + (1 / a_22)
 
