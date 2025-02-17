@@ -9,7 +9,7 @@ import repo.laser_param
 from model.video import Video
 from util import video_service
 
-VIDEO_NAMES: list[str] = "1,2,3,4,5".split(",")
+VIDEO_NAMES: list[str] = "15,16,17,18,19".split(",")
 
 results = []
 for VIDEO_NAME in VIDEO_NAMES:
@@ -21,7 +21,7 @@ for VIDEO_NAME in VIDEO_NAMES:
     print("=" * 40)
     print("=" * 40)
 
-    video_service.clear_dynamic_data(video, fg=False, stitching_frames=False)
+    video_service.clear_dynamic_data(video, fg=False, stitching_frames=True)
     config = video_service.StitchConfig(
         fg_w_edge=8,
         fg_feature_q_large=99,
@@ -31,13 +31,16 @@ for VIDEO_NAME in VIDEO_NAMES:
         fg_feature_eps=0.05,
         fg_feature_min_pts=15,
         fg_cov_lambda=0.01,
-        fg_th_mahalanobis=30,
+        fg_th_mahalanobis=40,
         fg_mask_pp_morph_open_px=2,
         fg_mask_pp_morph_close_px=10,
-        tm_max_move=(800, 200),
+        tm_min_move=(0, 0),
+        tm_max_move=(200, 50),
         tm_n_horizontal_split=4,
         stitch_th_fg_overlap=1,
     )
+    w_mm_true = 180
+
     roi = repo.global_config.get().roi
     video_service.create_frames_roi(video, roi)
     video_service.create_foreground(video, config)
@@ -58,7 +61,7 @@ for VIDEO_NAME in VIDEO_NAMES:
         camera_param,
         laser_param,
         laser_detection_model,
-        n_mid_frames=1,
+        n_mid_frames=3,
     )
 
     im_stitch, im_stitch_mask = video_service.get_stitched_image(video, config)
@@ -85,8 +88,12 @@ for VIDEO_NAME in VIDEO_NAMES:
     im = im_stitch.copy()
     cv2.rectangle(im, (x, y), (x + w, y + h), (0, 255, 0), 2)
     cv2.imshow("im", cv2.resize(im, None, fx=0.5, fy=0.5))
-    cv2.waitKey(0)
+    cv2.waitKey(1000)
     cv2.destroyWindow("im")
 
     results.append(w_mm)
-    pd.DataFrame(results, index=VIDEO_NAMES[:len(results)]).to_csv("out.csv", encoding="cp932")
+    df = pd.DataFrame(results, index=VIDEO_NAMES[:len(results)], columns=["w_meas"])
+    df["w_true"] = w_mm_true
+    df["w_true"] = df["w_true"].round(0)
+    df["w_error"] = ((df["w_meas"] - df["w_true"]) / df["w_true"] * 100).round(1)
+    df.to_csv("out.csv", encoding="cp932")

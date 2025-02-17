@@ -59,9 +59,9 @@ class RecordServer:
     _logger = create_logger()
 
     def __init__(self):
-        self._q_in = Queue()  # (command_name, data)
-        self._q_out = Queue()  # (command_name, data)
-        self._q_frames = Queue()  # np.ndarray
+        self._q_in = Queue(maxsize=128)  # (command_name, data)
+        self._q_out = Queue(maxsize=128)  # (command_name, data)
+        self._q_frames = Queue(maxsize=128)  # np.ndarray
         self._p = Process(target=self._worker, args=(self._q_in, self._q_out, self._q_frames))
         self._p.start()
 

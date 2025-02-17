@@ -53,6 +53,11 @@ def stitching_frames_fullpath(video: Video) -> Path:
     return repo.video.get_item_path(video.name, "stitching_frames.pickle")
 
 
+def save_image(im, video, name):
+    path = repo.video.get_item_path(video.name, f"_{name}.png")
+    cv2.imwrite(str(path), im)
+
+
 def clear_dynamic_data(video: Video, fg=True, stitching_frames=True) -> None:
     paths = []
     if fg:
@@ -136,6 +141,7 @@ class StitchConfig:
     fg_mask_pp_morph_open_px: int
     fg_mask_pp_morph_close_px: int
     tm_max_move: tuple[int, int]
+    tm_min_move: tuple[int, int]
     tm_n_horizontal_split: int
     stitch_th_fg_overlap: int
 
@@ -418,8 +424,37 @@ def create_foreground(video: Video, config: StitchConfig) -> None:
 class StitchingFrame:
     im: np.ndarray
     fg_mask: np.ndarray
+    laser_mask: np.ndarray
     points_screen: np.ndarray
     points_world: np.ndarray
+
+    @property
+    def im_tm(self) -> np.ndarray:
+        im = self.im.copy()
+
+        im = cv2.GaussianBlur(im.astype(float), (0, 0), 1, cv2.CV_32F)
+
+        im = cv2.Laplacian(
+            im,
+            cv2.CV_64F,
+            ksize=3,
+        )
+
+        mean = im.mean()
+        std = im.std()
+
+        im = (im - mean) / (std * 2)
+
+        im = cv2.normalize(
+            im,
+            None,
+            0,
+            255,
+            cv2.NORM_MINMAX,
+            cv2.CV_8U,
+        )
+
+        return im
 
     @property
     def width(self) -> int:
@@ -451,6 +486,8 @@ def get_stitching_frames(
         laser_detection_model: LaserDetectionModel,
         n_mid_frames: int,
 ) -> list[StitchingFrame]:
+    _, src_height, src_width = get_video_shape(video)
+
     def iter_frames() -> Iterable[StitchingFrame]:
         with h5py.File(frames_fullpath(video), "r") as f_frames:
             with h5py.File(fg_frames_fullpath(video), "r") as f_fg_frames:
@@ -464,12 +501,17 @@ def get_stitching_frames(
                     fg_mask = fg_frames[i, :, :]
 
                     laser_det_mask = laser_detection_model.create_laser_mask(im)
+                    laser_mask = np.zeros((src_height, src_width), np.uint8)
+                    s = (
+                        slice(roi.screen_y_min, roi.screen_y_min + laser_det_mask.shape[0]),
+                        slice(roi.screen_x_min, roi.screen_x_min + laser_det_mask.shape[1]),
+                    )
+                    laser_mask[s] = laser_det_mask
                     points_screen, points_world = get_laser_2d_and_3d_points(
-                        laser_det_mask,
+                        laser_mask,
                         camera_param,
                         laser_param,
                         roi,
-                        (roi.screen_x_min, roi.screen_y_min),
                     )
                     points_screen[:, 0] -= roi.screen_x_min
                     points_screen[:, 1] -= roi.screen_y_min
@@ -477,6 +519,7 @@ def get_stitching_frames(
                     yield StitchingFrame(
                         im=im,
                         fg_mask=fg_mask,
+                        laser_mask=laser_det_mask,
                         points_screen=points_screen,
                         points_world=points_world,
                     )
@@ -490,25 +533,25 @@ def get_stitching_frames(
         state = 0
         mid_frames = []
         for f in iter_frames():
-            if f.fg_ratio >= 0.999:
-                mid_frames.append(f)
             if state == 0:
-                if f.has_laser and f.fg_ratio >= 0.65:
+                if f.has_laser and f.fg_ratio >= 0.9:
                     lst.append(f)
                     state = 1
             elif state == 1:
-                if f.has_laser and f.fg_ratio >= 0.95:
+                if f.fg_ratio >= 0.975:
                     state = 2
             elif state == 2:
                 if f.has_laser and f.fg_ratio >= 0.99:
                     state = 3
+                    mid_frames.append(f)
             elif state == 3:
-                if f.has_laser and f.fg_ratio <= 0.95:
+                mid_frames.append(f)
+                if f.fg_ratio <= 0.975:
                     for k in range(1, n_mid_frames + 1):
                         lst.append(mid_frames[len(mid_frames) // (n_mid_frames + 1) * k])
                     state = 4
             elif state == 4:
-                if f.has_laser and f.fg_ratio <= 0.65:
+                if f.has_laser and f.fg_ratio <= 0.9:
                     lst.append(f)
                     state = 99
             elif state == 99:
@@ -538,18 +581,29 @@ def get_stitching_frames(
                         cv2.LINE_AA,
                     )
                     last_v = v
-            cv2.imshow("im", im)
+            cv2.putText(
+                im,
+                f"State: {state}, fg: {f.fg_ratio}",
+                (10, 30),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (0, 0, 255),
+                1,
+                cv2.LINE_AA,
+            )
+            cv2.imshow("mask_and_laser", im)
             if lst:
                 cv2.imshow(
-                    "im2",
+                    "stitching_frames",
                     np.hstack([cv2.resize(a.im, None, fx=0.3, fy=0.3) for a in lst]),
                 )
             cv2.waitKey(1)
 
-        cv2.waitKey(0)
-        cv2.destroyWindow("im")
-        cv2.destroyWindow("im2")
+        cv2.waitKey(1000)
+        cv2.destroyWindow("mask_and_laser")
+        cv2.destroyWindow("stitching_frames")
 
+        save_image(np.hstack([a.im for a in lst]), video, "stitching_frames")
         with stitching_frames_fullpath(video).open("wb") as f:
             pickle.dump(lst, f)
 
@@ -557,68 +611,89 @@ def get_stitching_frames(
 
 
 def template_match(f_1: StitchingFrame, f_2: StitchingFrame, config: StitchConfig) \
-        -> tuple[np.ndarray, tuple[int, int]]:  # matching image and (delta x, delta y)
-    def _pad(img, v_edge):
-        mx, my = config.tm_max_move
+        -> tuple[int, int]:  # matching image and (delta x, delta y)
 
-        pad_width = (my, my), (mx, mx)
-        if img.ndim == 3:
-            pad_width = *pad_width, (0, 0)
+    mx, my = config.tm_max_move
 
-        img = np.pad(
-            img,
-            pad_width,
+    results = []
+    for k in range(config.tm_n_horizontal_split):
+        im_1 = f_1.im_tm.copy()
+        mask_1 = f_1.fg_mask.copy()
+        mask_laser_1 = f_1.laser_mask.copy()
+
+        im_2 = f_2.im_tm.copy()
+        mask_2 = f_2.fg_mask.copy()
+
+        h, w = im_1.shape[:2]
+        w_split = w // config.tm_n_horizontal_split
+        x_ofs = w_split * k
+
+        im_1 = im_1[:, x_ofs:x_ofs + w_split]
+        mask_1 = mask_1[:, x_ofs:x_ofs + w_split]
+        mask_laser_1 = mask_laser_1[:, x_ofs:x_ofs + w_split]
+        im_1[~np.bool_(mask_1)] = 0
+        templ_mask = 255 - mask_laser_1.copy()
+
+        im_2 = im_2.copy()
+        im_2[~np.bool_(mask_2)] = 0
+        im_2 = np.pad(
+            im_2,
+            ((my, my), (mx, mx), (0, 0)),
         )
-        img[:my, :] = v_edge
-        img[-my:, :] = v_edge
-        img[:, :mx] = v_edge
-        img[:, -mx:] = v_edge
-        return img
-
-    def _get_match_image(im_pre, mask_pre, im_cur, mask_cur):
-        _ = mask_cur
-        im_cur_pad = _pad(im_cur, v_edge=im_cur.mean())
-        # mask_cur_pad = _pad(mask_cur, v_edge=0)
 
         im_match = cv2.matchTemplate(
-            image=im_cur_pad,
-            templ=im_pre,
+            image=im_2,
+            templ=im_1,
             method=cv2.TM_SQDIFF_NORMED,
-            mask=mask_pre,
+            mask=templ_mask,
+        )
+        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(im_match)
+
+        dx_global, dy_global = min_loc
+        dx_local, dy_local = dx_global - mx - x_ofs, dy_global - my
+
+        im = im_2.copy()
+        im_paste = cv2.warpAffine(
+            create_masked_preview(im_1, mask_1),
+            np.float32([
+                [1, 0, dx_global],
+                [0, 1, dy_global],
+            ]),
+            (im.shape[1], im.shape[0]),
+        )
+        im = cv2.addWeighted(
+            im,
+            0.5,
+            im_paste,
+            0.5,
+            0,
+        )
+        cv2.putText(
+            im,
+            f"{min_val:.2f} ({dx_local}, {dy_local})",
+            (mx, my),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (0, 255, 0),
+            2,
+            cv2.LINE_AA,
+        )
+        results.append(
+            dict(
+                im=im,
+                dx=dx_local,
+                dy=dy_local,
+                score=min_val,
+            )
         )
 
-        return im_match
+    im_result = np.vstack([r["im"] for r in results])
+    cv2.imshow("match", cv2.resize(im_result, None, fx=0.5, fy=0.5))
+    cv2.waitKey(500)
 
-    def _calc_vel(im_pre, mask_pre, im_cur, mask_cur):
-        # cv2.imshow("im", np.hstack([im_pre, im_cur]))
-        # cv2.waitKey(0)
-        # cv2.destroyWindow("im")
-
-        mx, my = config.tm_max_move
-
-        im_match = _get_match_image(im_pre, mask_pre, im_cur, mask_cur)
-        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(im_match)
-        loc_x, loc_y = np.array(min_loc)
-        v = np.array([loc_x, loc_y]) - [mx, my]
-        if np.allclose(v, [-mx, -my]):
-            return None, None, min_val
-        return v, im_match, min_val
-
-    vs = []
-    min_vals = []
-    for k in range(config.tm_n_horizontal_split):
-        x = f_1.width // config.tm_n_horizontal_split * k
-        w = f_1.width // config.tm_n_horizontal_split
-        v, im_match, min_val = _calc_vel(f_1.im[:, x:x + w], f_1.fg_mask[:, x:x + w], f_2.im,
-                                         f_2.fg_mask)
-        if v is None:
-            continue
-        v = v[0] - x, v[1]
-        vs.append(v)
-        min_vals.append(min_val)
-    v = vs[np.argmin(min_vals)]
-    print(vs, min_vals)
-    return "im_match is not available", v
+    i_best = np.argmin([r["score"] for r in results])
+    dx, dy = results[i_best]["dx"], results[i_best]["dy"]
+    return dx, dy
 
 
 def get_stitched_image(video: Video, config: StitchConfig) \
@@ -750,7 +825,7 @@ def get_stitched_image(video: Video, config: StitchConfig) \
         f_1 = stitching_frames[i_1]
         f_2 = stitching_frames[i_2]
 
-        im_match, (dx, dy) = template_match(f_1, f_2, config)
+        dx, dy = template_match(f_1, f_2, config)
         mat = np.eye(3)
         mat[0, 2] = -dx
         mat[1, 2] = -dy

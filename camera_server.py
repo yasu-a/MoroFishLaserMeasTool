@@ -165,9 +165,9 @@ class CameraServer:
 
     def __init__(self):
         self._configured_spec: CameraSpec | None = None
-        self._q_in = Queue()  # item: (command name, data)
-        self._q_out = Queue()  # item: CaptureResult
-        self._q_frames = Queue()
+        self._q_in = Queue(maxsize=128)  # item: (command name, data)
+        self._q_out = Queue(maxsize=128)  # item: CaptureResult
+        self._q_frames = Queue(maxsize=128)
         self._p = Process(target=self._worker, args=(self._q_in, self._q_out, self._q_frames))
         self._p.start()
 

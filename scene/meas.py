@@ -6,6 +6,7 @@ import numpy as np
 import repo.global_config
 from core.tk.app import ApplicationWindowSize
 from core.tk.component.button import ButtonComponent
+from core.tk.component.check_box import CheckBoxComponent
 from core.tk.component.component import Component
 from core.tk.component.label import LabelComponent
 from core.tk.component.separator import SeparatorComponent
@@ -163,6 +164,23 @@ class MeasScene(MyScene):
             )
         )
         self.add_component(SeparatorComponent(self))
+        self.add_component(
+            CheckBoxComponent(
+                self,
+                "Show Laser Mask",
+                value=False,
+                name="cb-show-laser-mask",
+            )
+        )
+        self.add_component(
+            CheckBoxComponent(
+                self,
+                "Enable Filter",
+                value=True,
+                name="cb-enable-filter",
+            )
+        )
+        self.add_component(SeparatorComponent(self))
         self.add_component(ButtonComponent(self, "Back", name="b-back"))
 
     def unload_event(self):
@@ -198,8 +216,24 @@ class MeasScene(MyScene):
     def create_background(self, window_size: ApplicationWindowSize) -> np.ndarray | None:
         im, mask = self._get_image_and_mask()
 
+        if self.find_component(CheckBoxComponent, "cb-show-laser-mask").get_value():
+            im[np.bool_(mask)] = np.array([0, 0, 255])[None, :]
+
         # ROI
         roi: ROI = self._get_roi()
+        if not self.find_component(CheckBoxComponent, "cb-enable-filter").get_value():
+            roi = ROI(
+                screen_x_min=-9999999,
+                screen_x_max=+9999999,
+                screen_y_min=-9999999,
+                screen_y_max=+9999999,
+                world_x_min=-9999999,
+                world_x_max=+9999999,
+                world_y_min=-9999999,
+                world_y_max=+9999999,
+                world_z_min=-9999999,
+                world_z_max=+9999999,
+            )
         im[:roi.screen_y_max, :roi.screen_x_min] //= 2
         im[:roi.screen_y_min, roi.screen_x_min:] //= 2
         im[roi.screen_y_min:, roi.screen_x_max:] //= 2
